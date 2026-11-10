@@ -1,0 +1,381 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-paper: #F8FAFC;
+    --bg-card: #FFFFFF;
+    --color-wood: #0F172A;
+    --color-wood-hover: #1E293B;
+    --color-wood-active: #334155;
+    --color-wood-soft: #F1F5F9;
+    --color-ink: #0F172A;
+    --color-muted: #64748B;
+    --color-highlighter: rgba(99, 102, 241, 0.22);
+    --color-accent: #4F46E5;
+    --border-subtle: #E2E8F0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-paper);
+    color: var(--color-ink);
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: 'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  }
+}
+
+/* Accessible focus styling */
+:focus-visible {
+  outline: 2px solid #4F46E5;
+  outline-offset: 2px;
+}
+
+/* Clean scrollbar & no-scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.45);
+}
+
+/* Page fade transition */
+@keyframes viewFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-view-fade {
+  animation: viewFadeIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* ==========================================================================
+   1. BOOK CARD 3D OPENING ON HOVER / FOCUS
+   ========================================================================== */
+.book-scene {
+  perspective: 1000px;
+  overflow: visible;
+  position: relative;
+}
+
+/* Row-by-row scroll reveal container */
+.book-reveal {
+  opacity: 1;
+  transform: none;
+  transition-property: opacity, transform;
+  transition-duration: 600ms;
+  transition-timing-function: cubic-bezier(0.22, 1.15, 0.36, 1);
+}
+
+.motion-ready .book-reveal {
+  opacity: 0;
+  transform: translateY(40px) scale(0.96);
+}
+
+.motion-ready .book-reveal.is-revealed {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.book-card-item {
+  position: relative;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  transition-property: border-color, background-color;
+  transition-duration: 200ms;
+}
+
+.book-card-item:hover,
+.book-card-item:focus-within {
+  border-color: rgba(79, 70, 229, 0.5);
+}
+
+/* 3D Book Container */
+.book-3d-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: visible;
+}
+
+.book-volume {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  transform: translateY(0);
+  transition-property: transform;
+  transition-duration: 500ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+  transform-style: preserve-3d;
+}
+
+/* Book Cover */
+.book-cover {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  transform-origin: left center;
+  transform: rotateY(0deg);
+  transition-property: transform;
+  transition-duration: 500ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+  z-index: 4;
+}
+
+/* 3 Paper layers behind cover */
+.book-pages {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.book-page {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background-color: #FDF9F3;
+  border: 1px solid rgba(43, 38, 34, 0.12);
+  transform-origin: left center;
+  transition-property: transform;
+  transition-duration: 500ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.book-page.page-1 {
+  background-color: #F8F2E8;
+  transform: translateX(0);
+}
+
+.book-page.page-2 {
+  background-color: #FAF4EB;
+  transform: translateX(0);
+}
+
+.book-page.page-3 {
+  background-color: #FCF8F1;
+  transform: translateX(0);
+}
+
+/* Elliptical shadow underneath the book */
+.book-shadow {
+  position: absolute;
+  bottom: -6px;
+  left: 10%;
+  width: 80%;
+  height: 8px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.12);
+  z-index: 1;
+  pointer-events: none;
+  transform-origin: center center;
+  transform: translateY(0) scaleX(1);
+  opacity: 1;
+  transition-property: transform, opacity;
+  transition-duration: 500ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Trigger 3D Opening on hover/focus - ONLY when pointer is fine and reveal is done */
+@media (hover: hover) and (pointer: fine) {
+  .book-reveal.reveal-done .book-card-item:hover .book-volume,
+  .book-reveal.reveal-done .book-card-item:focus-within .book-volume {
+    transform: translateY(-10px);
+  }
+
+  .book-reveal.reveal-done .book-card-item:hover .book-cover,
+  .book-reveal.reveal-done .book-card-item:focus-within .book-cover {
+    transform: rotateY(-30deg);
+  }
+
+  .book-reveal.reveal-done .book-card-item:hover .book-page.page-1,
+  .book-reveal.reveal-done .book-card-item:focus-within .book-page.page-1 {
+    transform: translateX(2px);
+  }
+
+  .book-reveal.reveal-done .book-card-item:hover .book-page.page-2,
+  .book-reveal.reveal-done .book-card-item:focus-within .book-page.page-2 {
+    transform: translateX(4px);
+  }
+
+  .book-reveal.reveal-done .book-card-item:hover .book-page.page-3,
+  .book-reveal.reveal-done .book-card-item:focus-within .book-page.page-3 {
+    transform: translateX(6px);
+  }
+
+  .book-reveal.reveal-done .book-card-item:hover .book-shadow,
+  .book-reveal.reveal-done .book-card-item:focus-within .book-shadow {
+    transform: translateY(8px) scaleX(1.12);
+    opacity: 0.45;
+  }
+}
+
+/* ==========================================================================
+   2. HIGHLIGHTER EFFECT ON QUOTES
+   ========================================================================== */
+.literary-highlighter {
+  color: var(--color-ink);
+  background-image: linear-gradient(var(--color-highlighter), var(--color-highlighter));
+  background-repeat: no-repeat;
+  background-position: left bottom 12%;
+  background-size: 0% 42%;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition-property: background-size;
+  transition-duration: 800ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.literary-highlighter.is-highlighted {
+  background-size: 100% 42%;
+}
+
+.literary-highlighter.instant-highlight {
+  background-size: 100% 42%;
+  transition: none !important;
+}
+
+/* ==========================================================================
+   3. SINGLE BOOK SWITCHER WIDGET (3D FLIP)
+   ========================================================================== */
+.flipper-scene {
+  perspective: 1200px;
+  overflow: visible;
+}
+
+.flipper-card {
+  width: 100%;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  transition-property: transform;
+  transition-duration: 700ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.flipper-card.is-flipping {
+  transform: rotateY(-180deg);
+}
+
+.flipper-face {
+  position: relative;
+  width: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flipper-face-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Switcher text transitions */
+.switcher-text-leaving {
+  opacity: 0;
+  transform: translateX(-12px);
+  transition-property: opacity, transform;
+  transition-duration: 200ms;
+  transition-timing-function: ease-out;
+}
+
+.switcher-text-entering {
+  opacity: 1;
+  transform: translateX(0);
+  transition-property: opacity, transform;
+  transition-duration: 350ms;
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.switcher-text-initial {
+  opacity: 0;
+  transform: translateX(12px);
+}
+
+/* ==========================================================================
+   4. WORD-BY-WORD HERO TITLE
+   ========================================================================== */
+.hero-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(8px);
+  transition-property: opacity, transform;
+  transition-duration: 260ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hero-word.word-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   5. REDUCED MOTION SUPPORT
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+    transform: none !important;
+  }
+
+  .motion-ready .book-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .literary-highlighter {
+    background-size: 100% 42% !important;
+    transition: none !important;
+  }
+
+  .flipper-card {
+    transition: none !important;
+    transform: none !important;
+  }
+
+  .hero-word {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
