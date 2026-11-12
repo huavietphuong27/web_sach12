@@ -176,6 +176,49 @@ export class AuthService {
     this.setSession(null);
   }
 
+  public static changePassword(
+    userId: string,
+    oldPass: string,
+    newPass: string
+  ): { success: boolean; error?: string } {
+    if (!newPass || newPass.length < 6) {
+      return { success: false, error: 'Mật khẩu mới phải từ 6 ký tự trở lên.' };
+    }
+    const users = this.loadUsers();
+    const emailKey = Object.keys(users).find((k) => users[k].id === userId);
+    if (!emailKey) return { success: false, error: 'Không tìm thấy người dùng.' };
+
+    const user = users[emailKey];
+    if (user.passwordHash !== simpleHash(oldPass)) {
+      return { success: false, error: 'Mật khẩu hiện tại không đúng.' };
+    }
+
+    user.passwordHash = simpleHash(newPass);
+    users[emailKey] = user;
+    this.saveUsers(users);
+    return { success: true };
+  }
+
+  public static resetPassword(
+    email: string,
+    newPass: string
+  ): { success: boolean; error?: string } {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!newPass || newPass.length < 6) {
+      return { success: false, error: 'Mật khẩu mới phải từ 6 ký tự trở lên.' };
+    }
+    const users = this.loadUsers();
+    const user = users[cleanEmail];
+    if (!user) {
+      return { success: false, error: 'Email này chưa được đăng ký trong hệ thống.' };
+    }
+
+    user.passwordHash = simpleHash(newPass);
+    users[cleanEmail] = user;
+    this.saveUsers(users);
+    return { success: true };
+  }
+
   public static updateProfile(
     userId: string,
     updates: Partial<UserProfile>

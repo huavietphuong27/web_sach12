@@ -10,6 +10,7 @@ import { ExploreView } from './views/ExploreView';
 import { AboutView } from './views/AboutView';
 import { AdvisorView } from './views/AdvisorView';
 import { BookDetailView } from './views/BookDetailView';
+import { AuthView } from './views/AuthView';
 import {
   AdvisorBook,
   advisorBookToBook,
@@ -110,8 +111,8 @@ function MainApp() {
         setCurrentRoute('home');
         return;
       }
-      if (['home', 'goal', 'catalog', 'explore', 'about', 'advisor'].includes(hash)) {
-        setCurrentRoute(hash);
+      if (['home', 'goal', 'catalog', 'explore', 'about', 'advisor', 'auth', 'profile'].includes(hash)) {
+        setCurrentRoute(hash === 'profile' ? 'auth' : hash);
       } else if (hash.startsWith('book-') || hash.startsWith('detail-')) {
         const prefixLen = hash.startsWith('detail-') ? 7 : 5;
         const bookId = decodeURIComponent(hash.slice(prefixLen));
@@ -265,6 +266,23 @@ function MainApp() {
             onOpenBook={handleOpenAdvisorBook}
             initialQuery={quickQuery}
             onConsumeQuery={() => setQuickQuery('')}
+          />
+        )}
+
+        {currentRoute === 'auth' && (
+          <AuthView
+            allBooks={allBooks}
+            onSelectBookById={(bookId) => {
+              const b = allBooks.find((item) => item.id === bookId);
+              if (b) {
+                handleSelectBook(b);
+              } else {
+                fetchBookById(bookId).then((fetched) => {
+                  if (fetched) handleSelectBook(fetched);
+                });
+              }
+            }}
+            onNavigateHome={() => navigateTo('home')}
           />
         )}
 

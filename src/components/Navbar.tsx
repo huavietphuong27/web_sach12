@@ -42,6 +42,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'catalog', label: 'Kho Sách', icon: Library },
     { id: 'explore', label: 'Khám Phá', icon: Globe },
     { id: 'about', label: 'Giới Thiệu', icon: Info },
+    {
+      id: 'auth',
+      label: isAuthenticated ? 'Tài Khoản & Dữ Liệu' : 'Đăng Nhập / Đăng Ký',
+      icon: User,
+      highlight: !isAuthenticated,
+    },
   ];
 
   const handleNavClick = (routeId: string) => {

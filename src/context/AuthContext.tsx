@@ -16,6 +16,8 @@ interface AuthContextType {
   clearHistory: () => void;
   login: (email: string, password: string) => { success: boolean; error?: string };
   register: (email: string, password: string, name: string, avatar?: string) => { success: boolean; error?: string };
+  changePassword: (oldPass: string, newPass: string) => { success: boolean; error?: string };
+  resetPassword: (email: string, newPass: string) => { success: boolean; error?: string };
   logout: () => void;
   updateProfile: (updates: Partial<UserProfile>) => void;
   // Modal controls
@@ -186,6 +188,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [guestFavorites]
   );
 
+  const changePassword = useCallback(
+    (oldPass: string, newPass: string) => {
+      if (!currentUser) return { success: false, error: 'Chưa đăng nhập.' };
+      return AuthService.changePassword(currentUser.id, oldPass, newPass);
+    },
+    [currentUser]
+  );
+
+  const resetPassword = useCallback((email: string, newPass: string) => {
+    return AuthService.resetPassword(email, newPass);
+  }, []);
+
   const logout = useCallback(() => {
     AuthService.logout();
     setCurrentUser(null);
@@ -233,6 +247,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clearHistory,
         login,
         register,
+        changePassword,
+        resetPassword,
         logout,
         updateProfile,
         isAuthModalOpen,
