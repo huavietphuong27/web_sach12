@@ -267,6 +267,7 @@ export default function App() {
       {currentRoute !== 'advisor' && (
         <FloatingChat
           books={allBooks}
+          currentBook={currentRoute === 'detail' ? selectedBook : null}
           isOpen={isFloatingChatOpen}
           onToggle={() => setIsFloatingChatOpen((prev) => !prev)}
           onSelectBook={(book) => {

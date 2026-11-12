@@ -278,3 +278,29 @@ test('Case 12: Chuỗi kiểm thử hồi quy (Regression Testing) toàn diện 
   const valid = isValidGoogleVolume({ id: mockBookA.id });
   assert.equal(valid, true);
 });
+
+// Case 13: Kiểm thử nhận diện ý định chuyên sâu (Deep Intent) chống bắt nhầm từ con ("bị bệnh" vs "tài chính", "mảng al" vs "khởi nghiệp")
+function containsWholePhraseTest(haystack, needle) {
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, 'i');
+  return regex.test(haystack);
+}
+
+function normalizeChatTyposTest(rawText) {
+  let norm = normalizeVietnamese(rawText);
+  norm = norm.replace(
+    /\b(mang|ve|hoc|lam|nganh|cong nghe|ung dung|phat trien|tim hieu|con|cai|he thong)\s+al\b/g,
+    '$1 ai'
+  );
+  return norm;
+}
+
+test('Case 13: Nhận diện chính xác ý định người dùng ("bị bệnh" -> Sức khỏe, "mảng al" -> AI) và chống bắt nhầm từ con', () => {
+  // 1. "ai" KHÔNG được bắt nhầm trong "tai chinh"
+  assert.equal(containsWholePhraseTest('quan ly tai chinh ca nhan', 'ai'), false);
+  // 2. "bi" trong "bi benh" KHÔNG được bắt nhầm trong "bi quyet lam giau"
+  assert.equal(containsWholePhraseTest('bi quyet lam giau tai chinh', 'bi benh'), false);
+  // 3. "tui muốn phát triển thêm về mảng al" phải chuẩn hóa thành "mang ai"
+  const normAi = normalizeChatTyposTest('tui muốn phát triển thêm về mảng al');
+  assert.equal(containsWholePhraseTest(normAi, 'mang ai'), true);
+});

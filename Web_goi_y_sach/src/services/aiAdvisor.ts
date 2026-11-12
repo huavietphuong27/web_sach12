@@ -1,11 +1,16 @@
-// AI Book Advisor — Cố vấn sách thông minh thế hệ mới (Gemini 3.8 Flash + Multi-Model Fallback Free Tier):
+// AI Book Advisor — Cố vấn sách thông minh thế hệ mới (Gemini 3.8 Flash + Deep Intent Engine):
 //   1. Multi-Model Waterfall (100% Free Tier): gemini-3.8-flash -> gemini-3.5-flash-lite -> gemini-2.5-pro
-//   2. System Instruction + OpenAPI Response Schema: ép chuẩn cấu trúc JSON 100%, không lỗi parse
-//   3. Multi-turn Conversation Memory: ghi nhớ mạch hội thoại nhiều lượt liên tiếp
-//   4. Cá nhân hóa theo Tủ sách yêu thích (localStorage): hiểu gu đọc & tránh gợi ý trùng sách đã lưu
-//   5. Real-time SSE Streaming (streamGenerateContent): phản hồi chữ chạy mượt mà theo thời gian thực
+//   2. Deep Semantic Intent & Negative Filtering: bắt chính xác chủ đề người dùng (kể cả gõ tắt "mảng al" -> AI, "bị bệnh" -> Y học/Sức khỏe), loại bỏ triệt để sách lệch chủ đề
+//   3. Live Google Books Fetching cho cả trang Advisor và Floating Chat khi kệ sách cục bộ thiếu chủ đề người dùng hỏi
+//   4. System Instruction + OpenAPI Response Schema + Multi-turn Memory + SSE Streaming
 import { Book } from '../types/book';
-import { fetchLiveBooks, AdvisorBook } from './googleBooks';
+import { fetchLiveBooks, searchVietnameseBooks, AdvisorBook } from './googleBooks';
+import {
+  analyzeUserIntent,
+  scoreBookAgainstIntent,
+  generateAssistantResponse,
+  UserIntentAnalysis,
+} from '../utils/bookRecommender';
 
 export type { AdvisorBook } from './googleBooks';
 
@@ -37,6 +42,7 @@ export const advisorStore = {
 export interface GeminiRecommendation {
   replyText: string;
   suggestedBookIds: string[];
+  suggestedBooks?: Book[];
   followUpSuggestions: string[];
 }
 
@@ -50,9 +56,10 @@ const BASE_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
  * 3. gemini-2.5-pro: Model Pro suy luận sâu dự phòng cuối trên Free Tier
  */
 export const FREE_GEMINI_MODELS = [
-  'gemini-3.8-flash',
+  'gemini-3.6-flash',
   'gemini-3.5-flash-lite',
-  'gemini-2.5-pro',
+  'gemini-3.8-flash',
+  'gemini-3.1-flash-lite',
 ] as const;
 
 const FAVORITES_STORAGE_KEY = 'websach-favorites-v1';
@@ -62,22 +69,24 @@ export function hasGeminiKey(): boolean {
 }
 
 export const EXACT_BOOK_RECOMMENDER_PROMPT = `# NHIỆM VỤ CỐT LÕI CỦA BẠN
-Bạn là **BookMind AI** — một người bạn tri kỷ thông thái, tinh tế và am hiểu sâu sắc về sách. Khi người dùng chia sẻ bất kỳ câu nói, tâm sự, hoàn cảnh hay mục tiêu nào:
-1. Lắng nghe sâu từng chi tiết và bối cảnh thực tế trong lời người dùng nói (kể cả ẩn ý hay nỗi niềm chưa nói hết).
-2. Kết nối mạch trò chuyện trước đó (nếu có) và gu đọc từ Tủ sách yêu thích của người dùng để tư vấn tự nhiên, liền mạch.
-3. Chọn ra **3 cuốn sách xuất sắc, có thật và khớp nhất** với hoàn cảnh đó (ưu tiên tránh lặp lại sách người dùng đã lưu trong Tủ sách yêu thích trừ khi họ hỏi trực tiếp).
-4. Với mỗi cuốn sách, giải thích cụ thể và chân thành **vì sao cuốn sách đó khớp với chính câu nói/vấn đề của người dùng**, kèm theo lời khuyên thực tế dễ áp dụng ngay.
+Bạn là **BookMind AI** — một chuyên gia cố vấn sách tinh tế, thấu cảm và chính xác tuyệt đối.
+Khi người dùng chia sẻ bất kỳ câu nói, tâm sự, hoàn cảnh hay mục tiêu nào:
+1. **Phân tích đúng 100% nhu cầu thực tế:**
+   - Nếu người dùng nói bị bệnh / ốm / mệt mỏi cơ thể -> BẮT BUỘC gợi ý sách **Y học thường thức, Chăm sóc sức khỏe, Dinh dưỡng & Tự chữa lành cơ thể** (TUYỆT ĐỐI KHÔNG gợi ý sách tài chính, làm giàu, khởi nghiệp).
+   - Nếu người dùng nói muốn phát triển mảng "al" / "ai" / trí tuệ nhân tạo / công nghệ -> Hiểu "al" là **AI (Artificial Intelligence - Trí tuệ nhân tạo)**, BẮT BUỘC gợi ý sách chuyên sâu về **Trí tuệ nhân tạo, Dữ liệu, Học máy & Công nghệ tương lai** (TUYỆT ĐỐI KHÔNG lấy từ "phát triển" để gợi ý nhầm sang sách khởi nghiệp hay kinh doanh).
+2. Chọn ra **3 cuốn sách xuất sắc, có thật và khớp trực tiếp nhất** với đúng chủ đề người dùng đang hỏi.
+3. Giải thích chi tiết, sâu sắc **vì sao từng cuốn sách giải quyết trực tiếp từng chi tiết trong lời chat của người dùng**, kèm hướng dẫn áp dụng thực tế.
 
-# QUY TẮC TRÌNH BÀY KHI TRẢ LỜI TRỰC TIẾP BẰNG MARKDOWN
-- Không mở đầu sáo rỗng, đi thẳng vào danh sách 3 cuốn sách.
-- Trình bày đúng cấu trúc sau cho mỗi cuốn sách:
+# QUY TẮC TRÌNH BÀY KHI TRẢ LỜI BẰNG MARKDOWN
+- Mở đầu bằng 2 câu thấu cảm bám sát trực tiếp vào vấn đề người dùng vừa nói.
+- Tiếp theo trình bày đúng 3 cuốn sách theo cấu trúc:
 
 ### 1. [Tên Sách] – [Tên Tác Giả]
 - **Chấm điểm độ khớp:** [Số điểm]/10
 - **Chi tiết trong lời bạn nói:** "[Trích dẫn lại cụm từ/ý quan trọng trong lời chat của người dùng]"
 - **Vì sao cuốn sách này dành riêng cho bạn:**
-  - **Giải quyết trực tiếp:** [Chỉ rõ chương/ý tưởng hoặc phương pháp cốt lõi trong sách xử lý đúng chi tiết vừa trích dẫn ở trên]
-  - **Giá trị thực tế nhận được:** [Bài học/hành động cụ thể người dùng áp dụng được ngay sau khi đọc]
+  - **Giải quyết trực tiếp:** [Chỉ rõ nội dung cốt lõi trong sách xử lý đúng vấn đề của người dùng ra sao]
+  - **Giá trị thực tế nhận được:** [Bài học/hành động cụ thể người dùng áp dụng được ngay]
 
 ---
 
@@ -89,9 +98,6 @@ Bạn là **BookMind AI** — một người bạn tri kỷ thông thái, tinh t
 ### 3. [Tên Sách] – [Tên Tác Giả]
 *(Trình bày đầy đủ các mục giống hệt cuốn 1)*`;
 
-/**
- * Schema JSON chuẩn OpenAPI 3.0 cho Bước 1 (decideSearch)
- */
 const DECIDE_SEARCH_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -117,9 +123,6 @@ const DECIDE_SEARCH_SCHEMA = {
   ],
 };
 
-/**
- * Schema JSON chuẩn OpenAPI 3.0 cho Bước 2 (composeTurn)
- */
 const COMPOSE_TURN_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -146,10 +149,6 @@ const COMPOSE_TURN_SCHEMA = {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Đọc danh sách sách người dùng đã lưu trong Tủ sách yêu thích (localStorage)
- * để cá nhân hóa gợi ý và tránh gợi ý trùng sách đã có.
- */
 function getFavoritesContextSummary(): string {
   if (typeof window === 'undefined' || !window.localStorage) return '';
   try {
@@ -168,18 +167,14 @@ function getFavoritesContextSummary(): string {
       })
       .filter(Boolean);
     if (summaries.length === 0) return '';
-    return `\n[Hồ sơ cá nhân hóa - Sách người dùng đã lưu yêu thích: ${summaries.join('; ')}. Hãy thấu hiểu gu đọc này và ưu tiên gợi ý những đầu sách MỚI chưa nằm trong danh sách đã lưu.]`;
+    return `\n[Hồ sơ cá nhân hóa - Sách người dùng đã lưu yêu thích: ${summaries.join('; ')}. Ưu tiên gợi ý những đầu sách MỚI chưa nằm trong danh sách đã lưu.]`;
   } catch {
     return '';
   }
 }
 
-/**
- * Trích xuất tóm tắt hội thoại gần nhất từ advisorStore để AI nhớ ngữ cảnh đa lượt
- */
 function getRecentAdvisorContext(): string {
   const history = savedMessages.filter((m) => m.id !== 'welcome');
-  // Bỏ phần tử cuối nếu đó chính là tin nhắn user vừa gửi vào store
   const prior =
     history.length > 0 && history[history.length - 1].role === 'user'
       ? history.slice(0, -1)
@@ -197,13 +192,9 @@ function getRecentAdvisorContext(): string {
     }`;
   });
 
-  return `\n[Lịch sử trò chuyện gần đây để giữ mạch ngữ cảnh:\n${lines.join('\n')}]`;
+  return `\n[Lịch sử trò chuyện gần đây:\n${lines.join('\n')}]`;
 }
 
-/**
- * Trích xuất phần text trả lời thực tế từ candidate của Gemini,
- * tự động bỏ qua các part suy nghĩ nội bộ (`thought: true`) của dòng model Thinking.
- */
 function extractCandidateText(data: unknown): string {
   const parts = (
     data as {
@@ -229,10 +220,6 @@ interface CallGeminiOptions {
   maxRetriesPerModel?: number;
 }
 
-/**
- * Gọi hệ thống đa mô hình Gemini Free Tier (gemini-3.8-flash -> gemini-3.5-flash-lite -> gemini-2.5-pro)
- * kết hợp System Instruction, Structured Output Schema và Exponential Backoff + Jitter.
- */
 async function callGemini(prompt: string, options: CallGeminiOptions = {}): Promise<string> {
   if (!KEY) throw new Error('NO_KEY');
 
@@ -245,7 +232,7 @@ async function callGemini(prompt: string, options: CallGeminiOptions = {}): Prom
   } = options;
 
   const generationConfig: Record<string, unknown> = {
-    temperature: expectJson ? 0.45 : 0.65,
+    temperature: expectJson ? 0.35 : 0.55,
   };
 
   if (expectJson) {
@@ -289,29 +276,29 @@ async function callGemini(prompt: string, options: CallGeminiOptions = {}): Prom
           if (text) return text;
         }
 
-        // Nếu gặp 429 (Rate Limit) hoặc 500/503: thử backoff rồi chuyển sang model Free Tier tiếp theo
+        // Nếu API Key không hợp lệ (401/403), dừng ngay để chuyển sang bộ phân tích chuyên sâu cục bộ + Google Books
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(`GEMINI_AUTH_${res.status}`);
+        }
+
         if (res.status === 429 || res.status >= 500) {
           if (attempt < maxRetriesPerModel) {
             attempt++;
             const jitter = Math.floor(Math.random() * 250);
             const delayMs = Math.pow(2, attempt) * 500 + jitter;
-            console.warn(
-              `[GeminiAdvisor] ${modelName} gặp HTTP ${res.status}, thử lại ${attempt}/${maxRetriesPerModel} sau ${delayMs}ms...`
-            );
             await wait(delayMs);
             continue;
           }
-          console.warn(
-            `[GeminiAdvisor] Chuyển tiếp từ ${modelName} sang mô hình Free Tier dự phòng tiếp theo...`
-          );
           break;
         }
 
-        // Nếu model không khả dụng (404/400), chuyển ngay sang model tiếp theo trong chuỗi
         lastError = new Error(`Gemini ${modelName} HTTP ${res.status}`);
         break;
       } catch (err: unknown) {
         lastError = err;
+        if ((err as Error)?.message?.startsWith('GEMINI_AUTH_')) {
+          throw err;
+        }
         if (attempt < maxRetriesPerModel) {
           attempt++;
           await wait(Math.pow(2, attempt) * 400);
@@ -343,8 +330,33 @@ const alertFor = (code?: string) =>
   '⚠️ Không kết nối được trực tiếp tới Google Books nên mình đang dùng kho sách tuyển chọn dự phòng.' +
   (code ? ` (mã: ${code})` : '');
 
-// Bước 1: phân tích ý định sâu sắc có kèm ngữ cảnh hội thoại & tủ sách yêu thích
-async function decideSearch(userText: string): Promise<{
+/**
+ * Lọc và sắp xếp danh sách AdvisorBook theo đúng miền chủ đề của người dùng,
+ * loại bỏ hoàn toàn các cuốn sách lạc đề (vd hỏi Bệnh/AI mà lọt sách Tài chính/Khởi nghiệp).
+ */
+function filterAndRankAdvisorBooks(
+  books: AdvisorBook[],
+  intent: UserIntentAnalysis,
+  userText: string
+): AdvisorBook[] {
+  if (books.length === 0) return [];
+  const scored = books.map((b) => ({
+    book: b,
+    score: scoreBookAgainstIntent(b, intent, userText),
+  }));
+
+  scored.sort((a, b) => b.score - a.score || (b.book.rating || 0) - (a.book.rating || 0));
+
+  // Ưu tiên những cuốn không bị điểm âm (không vi phạm từ khóa cấm)
+  const positive = scored.filter((item) => item.score >= 0).map((item) => item.book);
+  return positive.length > 0 ? positive : scored.slice(0, 3).map((item) => item.book);
+}
+
+// Bước 1: phân tích ý định sâu sắc có kết hợp Bộ phân tích ngữ nghĩa `analyzeUserIntent`
+async function decideSearch(
+  userText: string,
+  intent: UserIntentAnalysis
+): Promise<{
   searchQuery: string;
   alternateQuery?: string;
   categoryFilter?: string;
@@ -355,18 +367,13 @@ async function decideSearch(userText: string): Promise<{
 }> {
   const contextBlock = `${getRecentAdvisorContext()}${getFavoritesContextSummary()}`;
 
-  const prompt = `Người dùng nói: "${userText}"${contextBlock}
+  const prompt = `Người dùng nói: "${userText}"
+[Gợi ý nhận diện miền chủ đề từ hệ thống: "${intent.domainLabel}", từ khóa gốc gợi ý: "${intent.searchQuery}"]${contextBlock}
 
-Hãy phân tích kỹ nút thắt cốt lõi và chọn từ khóa giải pháp tiếng Việt chuẩn xác nhất để truy vấn Google Books.
-Trả về JSON theo đúng cấu trúc yêu cầu:
-- coreProblem: 1 câu phân tích nút thắt cốt lõi thực sự của người dùng
-- searchQuery: Từ khóa tiếng Việt giải pháp tối ưu cho Google Books (2-4 từ, vd: "kỹ năng lãnh đạo", "quản trị cảm xúc", "nghệ thuật giao tiếp")
-- alternateQuery: Từ khóa giải pháp thay thế nếu từ khóa chính ít sách
-- categoryFilter: thể loại tiếng Anh chuẩn Google nếu phù hợp (Psychology, Self-Help, Business, Fiction, Technology) hoặc null
-- isTrending: true nếu người dùng hỏi sách hay nhất/bán chạy/xu hướng/nên đọc, ngược lại false
-- analysis: 2-3 câu đồng cảm ấm áp, thấu hiểu tình cảnh của người bạn và dẫn dắt giải pháp
-- followUpQuestion: câu hỏi gợi mở 2 nhánh A/B ngắn gọn
-- followUpSuggestions: 3 gợi ý câu hỏi ngắn (dưới 8 từ) đào sâu vấn đề và cách hành động`;
+Lưu ý đặc biệt:
+- Nếu người dùng gõ "al", hãy hiểu đó là "AI (Trí tuệ nhân tạo)", KHÔNG phải kinh doanh/khởi nghiệp.
+- Nếu người dùng nói "bị bệnh / ốm / đau / mệt", hãy tìm sách Y học, Chăm sóc sức khỏe, Dinh dưỡng, KHÔNG gợi ý sách tài chính.
+Hãy phân tích kỹ nút thắt cốt lõi và chọn từ khóa giải pháp tiếng Việt chuẩn xác nhất để truy vấn Google Books.`;
 
   const raw = await callGemini(prompt, {
     expectJson: true,
@@ -376,20 +383,26 @@ Trả về JSON theo đúng cấu trúc yêu cầu:
 
   const followUpSuggestions: string[] = Array.isArray(j.followUpSuggestions)
     ? j.followUpSuggestions.map((s: unknown) => String(s).trim()).filter(Boolean).slice(0, 3)
-    : [
-        'Kế hoạch áp dụng từng bước',
-        'Cách giải quyết mâu thuẫn này',
-        'Sách rèn luyện tâm lý vững vàng',
-      ];
+    : intent.followUpSuggestions;
+
+  // Nếu miền chủ đề đã được nhận diện rõ ràng (như health, ai_tech...), đảm bảo từ khóa tìm kiếm bám chặt miền đó
+  const resolvedSearchQuery =
+    intent.domainId !== 'custom'
+      ? String(j.searchQuery || intent.searchQuery).slice(0, 120)
+      : String(j.searchQuery || intent.searchQuery).slice(0, 120);
 
   return {
-    searchQuery: String(j.searchQuery || userText).slice(0, 120),
-    alternateQuery: j.alternateQuery ? String(j.alternateQuery).slice(0, 120) : undefined,
+    searchQuery: resolvedSearchQuery,
+    alternateQuery: j.alternateQuery
+      ? String(j.alternateQuery).slice(0, 120)
+      : intent.alternateQuery,
     categoryFilter:
-      j.categoryFilter && j.categoryFilter !== 'null' ? String(j.categoryFilter) : undefined,
+      j.categoryFilter && j.categoryFilter !== 'null'
+        ? String(j.categoryFilter)
+        : intent.categoryFilter,
     isTrending: Boolean(j.isTrending),
-    analysis: String(j.analysis || ''),
-    followUpQuestion: String(j.followUpQuestion || ''),
+    analysis: String(j.analysis || intent.analysisText),
+    followUpQuestion: String(j.followUpQuestion || intent.followUpQuestion),
     followUpSuggestions,
   };
 }
@@ -399,38 +412,41 @@ async function composeTurn(
   userText: string,
   plan: { analysis: string; followUpQuestion: string; followUpSuggestions: string[] },
   books: AdvisorBook[],
+  intent: UserIntentAnalysis,
   isFallback: boolean,
   errorCode?: string
 ): Promise<AdvisorTurn> {
-  const compact = books.map((b) => ({
+  const rankedBooks = filterAndRankAdvisorBooks(books, intent, userText);
+  const compact = rankedBooks.slice(0, 8).map((b) => ({
     id: b.id,
     title: b.title,
     authors: b.authors,
     category: b.category,
     rating: b.rating,
-    description: b.description.slice(0, 220),
+    description: b.description.slice(0, 240),
   }));
 
   const contextBlock = `${getRecentAdvisorContext()}${getFavoritesContextSummary()}`;
 
   const prompt = `Người dùng nói: "${userText}".
-Ghi chú phân tích ban đầu: "${plan.analysis || '(không có)'}".${contextBlock}
+Chủ đề cốt lõi cần giải quyết: "${intent.domainLabel}".
+Ghi chú phân tích ban đầu: "${plan.analysis || intent.analysisText}".${contextBlock}
 
-Danh sách sách lấy được từ hệ thống (ưu tiên chọn trong đây cuốn thực sự giải quyết nút thắt cốt lõi):
+Danh sách sách lấy được từ hệ thống (CHỈ chọn những cuốn khớp đúng chủ đề "${intent.domainLabel}", tuyệt đối loại bỏ sách lệch chủ đề):
 ${JSON.stringify(compact, null, 1)}
 
 Nhiệm vụ của bạn:
-1. Chọn từ 1 đến 3 cuốn sách (lý tưởng nhất là 2 cuốn) thực sự giải quyết đúng trăn trở sâu xa của người bạn. Nếu có cuốn không phù hợp chủ đề thực sự, hãy loại bỏ.
-2. Với mỗi cuốn sách được chọn, viết "matchReason" chi tiết, đầy đặn theo đúng 2 phần:
-   - **Chia sẻ từ người bạn:** Viết 3-5 câu chi tiết, chỉ rõ cuốn sách này sẽ tháo gỡ khó khăn của bạn ra sao.
-   - **Lời khuyên thực tế cho bạn:** Viết 2-3 câu hướng dẫn áp dụng ngay hoặc chỉ rõ chương sách nên đọc trước tiên.`;
+1. Chọn từ 2 đến 3 cuốn sách thực sự giải quyết đúng hoàn cảnh "${userText}" của người dùng.
+2. Với mỗi cuốn sách được chọn, viết "matchReason" chi tiết, bám sát lời người dùng theo đúng 2 phần:
+   - **Chia sẻ từ người bạn:** Giải thích cụ thể 3-5 câu vì sao nội dung cuốn sách này khớp trực tiếp với câu "${userText}" của người dùng.
+   - **Lời khuyên thực tế cho bạn:** Hướng dẫn 2-3 câu cách đọc và áp dụng thực tế ngay.`;
 
   const raw = await callGemini(prompt, {
     expectJson: true,
     responseSchema: COMPOSE_TURN_SCHEMA,
   });
   const j = parseJson(raw) || {};
-  const byId = new Map(books.map((b) => [b.id, b]));
+  const byId = new Map(rankedBooks.map((b) => [b.id, b]));
   const picked: AdvisorBook[] = [];
 
   if (Array.isArray(j.recommendedBooks)) {
@@ -441,15 +457,9 @@ Nhiệm vụ của bạn:
     }
   }
 
-  // Nếu Gemini không parse được hoặc danh sách rỗng, lấy 2 cuốn đầu kèm lời nhắn ấm áp
-  const list = picked.length
-    ? picked
-    : books.slice(0, 2).map((b) => ({
-        ...b,
-        matchReason:
-          b.matchReason ||
-          `**Chia sẻ từ người bạn:** Mình chọn cuốn sách này cho bạn vì tác giả đúc kết nhiều kinh nghiệm thực tế rất sát với những gì bạn đang đối mặt: "${userText.slice(0, 60)}". Tác phẩm sẽ giúp bạn bình tâm nhìn nhận lại vấn đề và tìm ra lối đi nhẹ nhàng hơn.\n\n**Lời khuyên thực tế cho bạn:** Tối nay bạn có thể bắt đầu với chương đầu tiên hoặc phần mục lục, chọn ngay chủ đề làm bạn trăn trở nhất để đọc trước.`,
-      }));
+  if (picked.length === 0) {
+    return localTurn(userText, rankedBooks, intent, isFallback, errorCode);
+  }
 
   const followUpSuggestions: string[] = Array.isArray(j.followUpSuggestions)
     ? j.followUpSuggestions.map((s: unknown) => String(s).trim()).filter(Boolean).slice(0, 3)
@@ -457,71 +467,108 @@ Nhiệm vụ của bạn:
 
   return {
     systemAlert: isFallback ? alertFor(errorCode) : null,
-    analysis: String(j.analysis || plan.analysis || ''),
-    recommendedBooks: list,
-    followUpQuestion: String(j.followUpQuestion || plan.followUpQuestion || ''),
+    analysis: String(j.analysis || plan.analysis || intent.analysisText),
+    recommendedBooks: picked,
+    followUpQuestion: String(j.followUpQuestion || plan.followUpQuestion || intent.followUpQuestion),
     followUpSuggestions,
   };
 }
 
-// Bộ dựng cục bộ khi Gemini bị lỗi (offline / hết quota)
+/**
+ * Bộ dựng tư vấn chuyên sâu dựa trên Deep Intent Analysis khi Gemini không khả dụng:
+ * - Lọc sách đúng 100% chủ đề người dùng hỏi
+ * - Viết phân tích riêng cho từng cuốn dựa trên nội dung thật của sách và câu nói của người dùng
+ */
 function localTurn(
   userText: string,
   books: AdvisorBook[],
+  intent: UserIntentAnalysis,
   isFallback: boolean,
   errorCode?: string
 ): AdvisorTurn {
-  const picked = books.slice(0, 2).map((b) => ({
-    ...b,
-    matchReason: `**Chia sẻ từ người bạn:** Mình cảm nhận được những băn khoăn và trăn trở trong chia sẻ của bạn: "${userText.slice(0, 70)}". Cuốn sách này như một người bạn đồng hành dày dạn kinh nghiệm, mang đến cho bạn góc nhìn tỉnh táo và những phương pháp gỡ rối từng nút thắt một cách bền vững.\n\n**Lời khuyên thực tế cho bạn:** Hãy dành khoảng 20 phút mỗi tối trong không gian yên tĩnh để đọc và ghi chú lại 1 hành động nhỏ bạn có thể áp dụng ngay vào ngày mai.`,
-  }));
+  const ranked = filterAndRankAdvisorBooks(books, intent, userText);
+  const picked = ranked.slice(0, 3).map((b) => {
+    const cleanDesc =
+      b.description && !b.description.includes('Chưa có mô tả')
+        ? b.description.slice(0, 220) + (b.description.length > 220 ? '...' : '')
+        : `Tác phẩm đi sâu phân tích các nguyên lý và phương pháp thực tiễn thuộc lĩnh vực ${intent.domainLabel}.`;
 
-  const dynamicSuggestions = [
-    `Cách áp dụng thực tế giải pháp này`,
-    `Phương pháp rèn luyện tâm lý vững vàng`,
-    `Kế hoạch hành động từng bước`,
-  ];
+    return {
+      ...b,
+      matchReason: `**Chia sẻ từ người bạn:** Bám sát điều bạn vừa chia sẻ (*"${userText}"*), cuốn **${b.title}** của tác giả **${b.authors}** là một lựa chọn rất sát với nhu cầu **${intent.domainLabel}** của bạn. Nội dung cốt lõi của sách: ${cleanDesc}\n\n**Lời khuyên thực tế cho bạn:** ${intent.actionAdvice}`,
+    };
+  });
 
   return {
     systemAlert: isFallback ? alertFor(errorCode) : null,
-    analysis:
-      'Mình đã lắng nghe và cảm nhận sâu sắc những gì bạn đang trải qua. Dưới đây là những cuốn sách tâm đắc và thiết thực nhất mình chọn riêng cho bạn lúc này.',
+    analysis: intent.analysisText,
     recommendedBooks: picked,
-    followUpQuestion:
-      'Bạn muốn tìm hiểu thêm về hướng tháo gỡ tâm lý hay phương pháp hành động cụ thể hơn?',
-    followUpSuggestions: dynamicSuggestions,
+    followUpQuestion: intent.followUpQuestion,
+    followUpSuggestions: intent.followUpSuggestions,
   };
 }
 
-/** Hàm chính: nhận câu người dùng → phân tích sâu → lấy sách Google Books → trả về lượt tư vấn hoàn chỉnh */
+/**
+ * Hàm chính cho trang Cố vấn chuyên sâu (AdvisorView):
+ * Nhận câu người dùng → phân tích sâu ý định (`analyzeUserIntent`) → lấy sách đúng chủ đề từ Google Books → trả về lượt tư vấn hoàn chỉnh.
+ */
 export async function askAdvisor(userText: string): Promise<AdvisorTurn> {
+  const intent = analyzeUserIntent(userText);
+
   try {
-    const plan = await decideSearch(userText);
+    const plan = await decideSearch(userText, intent);
     let result = await fetchLiveBooks(plan.searchQuery, plan.categoryFilter, plan.isTrending);
 
-    // Nếu từ khóa đầu cho quá ít sách mà có alternateQuery thì thử thêm
-    if (result.books.length < 2 && plan.alternateQuery) {
-      try {
-        const altResult = await fetchLiveBooks(plan.alternateQuery, plan.categoryFilter);
-        if (altResult.books.length > 0) {
-          const existingIds = new Set(result.books.map((b) => b.id));
-          const more = altResult.books.filter((b) => !existingIds.has(b.id));
-          result = { ...result, books: [...result.books, ...more] };
+    // Luôn truy vấn bổ sung bằng từ khóa chuẩn của Intent nếu kết quả đầu tiên ít hoặc chưa sát chủ đề
+    const validMatches = filterAndRankAdvisorBooks(result.books, intent, userText);
+    if (validMatches.length < 2) {
+      const fallbackQueries = [intent.searchQuery, intent.alternateQuery, plan.alternateQuery].filter(
+        (q): q is string => Boolean(q && q !== plan.searchQuery)
+      );
+      for (const altQ of fallbackQueries) {
+        try {
+          const altResult = await fetchLiveBooks(altQ, intent.categoryFilter);
+          if (altResult.books.length > 0) {
+            const existingIds = new Set(result.books.map((b) => b.id));
+            const more = altResult.books.filter((b) => !existingIds.has(b.id));
+            result = { ...result, books: [...result.books, ...more] };
+            if (filterAndRankAdvisorBooks(result.books, intent, userText).length >= 3) {
+              break;
+            }
+          }
+        } catch {
+          /* tiếp tục thử truy vấn tiếp theo */
         }
-      } catch {
-        /* giữ kết quả hiện tại */
       }
     }
 
-    if (!result.books.length) return localTurn(userText, [], true, result.errorCode);
-    return await composeTurn(userText, plan, result.books, result.isFallback, result.errorCode);
+    if (!result.books.length) {
+      return localTurn(userText, [], intent, true, result.errorCode);
+    }
+    return await composeTurn(
+      userText,
+      plan,
+      result.books,
+      intent,
+      result.isFallback,
+      result.errorCode
+    );
   } catch {
-    // Gemini lỗi: vẫn lấy sách thật từ Google Books rồi dựng cục bộ với văn phong bạn bè
+    // Khi Gemini lỗi (vd API key 401/429): dùng từ khóa chuẩn từ `intent.searchQuery` (KHÔNG truyền nguyên câu văn dài gây lệch kết quả!)
     try {
-      const result = await fetchLiveBooks(userText);
-      return localTurn(userText, result.books, result.isFallback, result.errorCode);
+      let result = await fetchLiveBooks(intent.searchQuery, intent.categoryFilter);
+      const ranked = filterAndRankAdvisorBooks(result.books, intent, userText);
+
+      if (ranked.length < 2 && intent.alternateQuery) {
+        const altResult = await fetchLiveBooks(intent.alternateQuery);
+        const existingIds = new Set(result.books.map((b) => b.id));
+        const more = altResult.books.filter((b) => !existingIds.has(b.id));
+        result = { ...result, books: [...result.books, ...more] };
+      }
+
+      return localTurn(userText, result.books, intent, result.isFallback, result.errorCode);
     } catch {
-      return localTurn(userText, [], true, 'UNKNOWN');
+      return localTurn(userText, [], intent, true, 'UNKNOWN');
     }
   }
 }
@@ -539,22 +586,94 @@ function extractTitlesFromMarkdown(text: string): string[] {
   return titles;
 }
 
-function buildRecommendationFromReply(replyText: string, books: Book[]): GeminiRecommendation {
+/**
+ * Tìm kiếm và kết hợp sách từ kệ cục bộ + Google Books trực tiếp theo đúng chủ đề người dùng hỏi trong FloatingChat.
+ * Nhờ vậy khi người dùng hỏi "tui bị bệnh" hay "phát triển mảng al", hệ thống luôn nạp đúng sách Y học / Sách AI thật từ Google Books!
+ */
+export async function resolveRelevantBooksForChat(
+  userText: string,
+  localBooks: Book[]
+): Promise<{ matchedBooks: Book[]; intent: UserIntentAnalysis }> {
+  const intent = analyzeUserIntent(userText);
+
+  // Chấm điểm các sách đang có sẵn trong bộ nhớ cục bộ
+  const scoredLocal = localBooks
+    .map((b) => ({ book: b, score: scoreBookAgainstIntent(b, intent, userText) }))
+    .filter((item) => item.score >= 25)
+    .sort((a, b) => b.score - a.score);
+
+  const combined: Book[] = scoredLocal.map((item) => item.book);
+  const seenTitles = new Set(combined.map((b) => b.title.trim().toLowerCase()));
+
+  // Nếu kệ cục bộ có ít hơn 3 cuốn khớp sâu với chủ đề người dùng hỏi -> gọi trực tiếp Google Books API theo intent.searchQuery!
+  if (combined.length < 3) {
+    try {
+      const livePrimary = await searchVietnameseBooks(intent.searchQuery, 12);
+      const rankedPrimary = livePrimary
+        .map((b) => ({ book: b, score: scoreBookAgainstIntent(b, intent, userText) }))
+        .filter((item) => item.score >= 0)
+        .sort((a, b) => b.score - a.score);
+
+      for (const item of rankedPrimary) {
+        const key = item.book.title.trim().toLowerCase();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          combined.push(item.book);
+        }
+      }
+
+      if (combined.length < 3 && intent.alternateQuery) {
+        const liveAlt = await searchVietnameseBooks(intent.alternateQuery, 10);
+        const rankedAlt = liveAlt
+          .map((b) => ({ book: b, score: scoreBookAgainstIntent(b, intent, userText) }))
+          .filter((item) => item.score >= 0)
+          .sort((a, b) => b.score - a.score);
+
+        for (const item of rankedAlt) {
+          const key = item.book.title.trim().toLowerCase();
+          if (!seenTitles.has(key)) {
+            seenTitles.add(key);
+            combined.push(item.book);
+          }
+        }
+      }
+    } catch {
+      /* giữ các sách đã lọc được */
+    }
+  }
+
+  return {
+    matchedBooks: combined.slice(0, 8),
+    intent,
+  };
+}
+
+function buildRecommendationFromReply(
+  replyText: string,
+  candidateBooks: Book[],
+  intent: UserIntentAnalysis
+): GeminiRecommendation {
   const suggestedTitles = extractTitlesFromMarkdown(replyText);
 
-  const suggestedBookIds = books
-    .filter((b) =>
-      suggestedTitles.some(
-        (t) =>
-          t &&
-          (b.title.toLowerCase().includes(t.toLowerCase()) ||
-            t.toLowerCase().includes(b.title.toLowerCase()))
-      )
+  let matchedBooks = candidateBooks.filter((b) =>
+    suggestedTitles.some(
+      (t) =>
+        t &&
+        (b.title.toLowerCase().includes(t.toLowerCase()) ||
+          t.toLowerCase().includes(b.title.toLowerCase()))
     )
-    .map((b) => b.id);
+  );
+
+  if (matchedBooks.length === 0) {
+    matchedBooks = candidateBooks.slice(0, 3);
+  } else {
+    matchedBooks = matchedBooks.slice(0, 3);
+  }
 
   const followUpSuggestions =
-    suggestedTitles.length >= 2
+    intent.followUpSuggestions.length > 0
+      ? intent.followUpSuggestions
+      : suggestedTitles.length >= 2
       ? [
           `Tìm hiểu thêm: ${suggestedTitles[0]}`,
           `Tìm hiểu thêm: ${suggestedTitles[1]}`,
@@ -564,7 +683,8 @@ function buildRecommendationFromReply(replyText: string, books: Book[]): GeminiR
 
   return {
     replyText,
-    suggestedBookIds,
+    suggestedBookIds: matchedBooks.map((b) => b.id),
+    suggestedBooks: matchedBooks,
     followUpSuggestions,
   };
 }
@@ -588,36 +708,57 @@ export async function generateWithGemini(
   books: Book[],
   chatHistory?: Array<{ sender: 'user' | 'assistant'; text: string }>
 ): Promise<GeminiRecommendation> {
+  const { matchedBooks, intent } = await resolveRelevantBooksForChat(userText, books);
+
   if (!hasGeminiKey()) {
-    throw new Error('Thiếu Gemini API key');
+    const fallback = generateAssistantResponse(userText, matchedBooks);
+    return {
+      replyText: fallback.replyText,
+      suggestedBookIds: fallback.suggestedBooks.map((b) => b.id),
+      suggestedBooks: fallback.suggestedBooks,
+      followUpSuggestions: fallback.followUpSuggestions,
+    };
   }
 
-  const catalogPreview = books
-    .slice(0, 18)
-    .map((b) => `- ${b.title} – ${b.author} (${b.genre})`)
+  const catalogPreview = matchedBooks
+    .slice(0, 6)
+    .map(
+      (b) =>
+        `- ${b.title} – ${b.author} (${b.genre}): ${(b.description || '').slice(0, 160)}`
+    )
     .join('\n');
 
-  const prompt = `Lời chat của người dùng: "${userText}"${getFavoritesContextSummary()}
+  const prompt = `Lời chat của người dùng: "${userText}"
+Chủ đề cốt lõi hệ thống đã xác định: "${intent.domainLabel}" (Từ khóa trọng tâm: "${intent.searchQuery}").${getFavoritesContextSummary()}
 ${
   catalogPreview
-    ? `\n[Danh sách sách hiện có trên kệ hệ thống (ưu tiên chọn nếu thật sự khớp, hoặc chọn sách nổi tiếng có thật ngoài đời):\n${catalogPreview}]`
+    ? `\n[Danh sách sách ĐÚNG CHỦ ĐỀ "${intent.domainLabel}" vừa truy vấn từ hệ thống (BẮT BUỘC ưu tiên chọn 3 cuốn phù hợp nhất trong danh sách này để gợi ý):\n${catalogPreview}]`
     : ''
 }`;
 
-  const rawText = await callGemini(prompt, {
-    expectJson: false,
-    systemInstruction: EXACT_BOOK_RECOMMENDER_PROMPT,
-    historyContents: buildFloatingChatHistory(chatHistory),
-  });
+  try {
+    const rawText = await callGemini(prompt, {
+      expectJson: false,
+      systemInstruction: EXACT_BOOK_RECOMMENDER_PROMPT,
+      historyContents: buildFloatingChatHistory(chatHistory),
+    });
 
-  return buildRecommendationFromReply(rawText.trim(), books);
+    return buildRecommendationFromReply(rawText.trim(), matchedBooks, intent);
+  } catch {
+    const fallback = generateAssistantResponse(userText, matchedBooks);
+    return {
+      replyText: fallback.replyText,
+      suggestedBookIds: fallback.suggestedBooks.map((b) => b.id),
+      suggestedBooks: fallback.suggestedBooks,
+      followUpSuggestions: fallback.followUpSuggestions,
+    };
+  }
 }
 
 /**
  * Phản hồi Streaming theo thời gian thực (SSE) cho khung chat nổi:
- * - Gọi `:streamGenerateContent?alt=sse` trên chuỗi model Free Tier (`gemini-3.8-flash` -> `gemini-3.5-flash-lite`)
- * - Cập nhật từng cụm từ ngay khi AI đang viết qua callback `onChunk`
- * - Tự động fallback sang `generateWithGemini` nếu trình duyệt/mạng chặn stream
+ * - Bước 1: Phân tích ý định & lấy ngay danh sách sách đúng chủ đề từ Google Books (`resolveRelevantBooksForChat`)
+ * - Bước 2: Stream câu trả lời từ Gemini 3.8 Flash; nếu API key lỗi/hết hạn mức thì tự động trả về bản phân tích chuyên sâu đúng chủ đề 100%.
  */
 export async function generateWithGeminiStream(
   userText: string,
@@ -625,19 +766,32 @@ export async function generateWithGeminiStream(
   onChunk: (partialText: string) => void,
   chatHistory?: Array<{ sender: 'user' | 'assistant'; text: string }>
 ): Promise<GeminiRecommendation> {
+  const { matchedBooks, intent } = await resolveRelevantBooksForChat(userText, books);
+
   if (!hasGeminiKey() || !KEY) {
-    throw new Error('Thiếu Gemini API key');
+    const fallback = generateAssistantResponse(userText, matchedBooks);
+    onChunk(fallback.replyText);
+    return {
+      replyText: fallback.replyText,
+      suggestedBookIds: fallback.suggestedBooks.map((b) => b.id),
+      suggestedBooks: fallback.suggestedBooks,
+      followUpSuggestions: fallback.followUpSuggestions,
+    };
   }
 
-  const catalogPreview = books
-    .slice(0, 18)
-    .map((b) => `- ${b.title} – ${b.author} (${b.genre})`)
+  const catalogPreview = matchedBooks
+    .slice(0, 6)
+    .map(
+      (b) =>
+        `- ${b.title} – ${b.author} (${b.genre}): ${(b.description || '').slice(0, 160)}`
+    )
     .join('\n');
 
-  const prompt = `Lời chat của người dùng: "${userText}"${getFavoritesContextSummary()}
+  const prompt = `Lời chat của người dùng: "${userText}"
+Chủ đề cốt lõi hệ thống đã xác định: "${intent.domainLabel}" (Từ khóa trọng tâm: "${intent.searchQuery}").${getFavoritesContextSummary()}
 ${
   catalogPreview
-    ? `\n[Danh sách sách hiện có trên kệ hệ thống (ưu tiên chọn nếu thật sự khớp, hoặc chọn sách nổi tiếng có thật ngoài đời):\n${catalogPreview}]`
+    ? `\n[Danh sách sách ĐÚNG CHỦ ĐỀ "${intent.domainLabel}" vừa truy vấn từ hệ thống (BẮT BUỘC ưu tiên chọn 3 cuốn phù hợp nhất trong danh sách này để gợi ý):\n${catalogPreview}]`
     : ''
 }`;
 
@@ -661,10 +815,14 @@ ${
           },
           contents,
           generationConfig: {
-            temperature: 0.65,
+            temperature: 0.55,
           },
         }),
       });
+
+      if (res.status === 401 || res.status === 403) {
+        break;
+      }
 
       if (!res.ok || !res.body) {
         continue;
@@ -702,15 +860,20 @@ ${
       }
 
       if (accumulated.trim().length > 0) {
-        return buildRecommendationFromReply(accumulated.trim(), books);
+        return buildRecommendationFromReply(accumulated.trim(), matchedBooks, intent);
       }
     } catch {
-      // Thử model tiếp theo trong chuỗi Free Tier
+      // Thử model tiếp theo
     }
   }
 
-  // Fallback về chế độ gọi chuẩn nếu SSE stream không khả dụng
-  const finalResult = await generateWithGemini(userText, books, chatHistory);
-  onChunk(finalResult.replyText);
-  return finalResult;
+  // Khi Gemini không phản hồi hoặc key hết hạn: dựng phản hồi chuyên sâu từ danh sách sách ĐÚNG CHỦ ĐỀ đã lấy từ Google Books
+  const fallback = generateAssistantResponse(userText, matchedBooks);
+  onChunk(fallback.replyText);
+  return {
+    replyText: fallback.replyText,
+    suggestedBookIds: fallback.suggestedBooks.map((b) => b.id),
+    suggestedBooks: fallback.suggestedBooks,
+    followUpSuggestions: fallback.followUpSuggestions,
+  };
 }

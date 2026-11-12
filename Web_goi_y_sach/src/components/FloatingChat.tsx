@@ -6,6 +6,7 @@ import { generateWithGeminiStream } from '../services/aiAdvisor';
 
 interface FloatingChatProps {
   books: Book[];
+  currentBook?: Book | null;
   isOpen: boolean;
   onToggle: () => void;
   onSelectBook: (book: Book) => void;
@@ -39,6 +40,7 @@ function renderChatMarkdown(text: string): string {
 
 export const FloatingChat: React.FC<FloatingChatProps> = ({
   books,
+  currentBook = null,
   isOpen,
   onToggle,
   onSelectBook,
@@ -56,6 +58,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [quickSuggestions, setQuickSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
+  const [discoveredBooks, setDiscoveredBooks] = useState<Book[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -68,9 +71,27 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
     }
   }, [messages, isOpen]);
 
+  // Khi người dùng đang xem chi tiết một cuốn sách, tự động cập nhật gợi ý nhanh theo cuốn sách đang xem
+  useEffect(() => {
+    if (currentBook) {
+      setQuickSuggestions([
+        `Gợi ý sách liên quan tới "${currentBook.title}"`,
+        `Sách cùng chủ đề ${currentBook.genre}`,
+        `Tác phẩm khác của ${currentBook.author}`,
+      ]);
+    } else {
+      setQuickSuggestions(DEFAULT_SUGGESTIONS);
+    }
+  }, [currentBook]);
+
   const handleSend = async (customText?: string) => {
     const trimmed = (customText ?? inputText).trim();
     if (!trimmed || isTyping) return;
+
+    const queryWithBookContext =
+      currentBook && /liên quan|tương tự|giống|cuốn này|sách này|cùng chủ đề/i.test(trimmed)
+        ? `${trimmed} (Sách đang xem: "${currentBook.title}" - Tác giả: ${currentBook.author} - Thể loại: ${currentBook.genre})`
+        : trimmed;
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
@@ -91,8 +112,8 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
     try {
       let streamedStarted = false;
       const result = await generateWithGeminiStream(
-        trimmed,
-        books,
+        queryWithBookContext,
+        books.filter((b) => !currentBook || b.id !== currentBook.id),
         (partialText) => {
           if (!streamedStarted) {
             streamedStarted = true;
@@ -114,6 +135,16 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
         },
         priorHistory
       );
+
+      if (result.suggestedBooks && result.suggestedBooks.length > 0) {
+        setDiscoveredBooks((prev) => {
+          const map = new Map(prev.map((b) => [b.id, b]));
+          for (const b of result.suggestedBooks!) {
+            map.set(b.id, b);
+          }
+          return Array.from(map.values());
+        });
+      }
 
       setMessages((prev) => {
         const exists = prev.some((m) => m.id === assistantMsgId);
@@ -146,11 +177,12 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
     } catch {
       const fallback = generateAssistantResponse(trimmed, books);
       const suggestedBookIds = fallback.suggestedBooks.map((b) => b.id);
-      setQuickSuggestions([
-        'Giải pháp áp dụng ngay',
-        'Kỹ năng thực chiến',
-        'Kế hoạch hành động',
-      ]);
+      setQuickSuggestions(
+        fallback.followUpSuggestions && fallback.followUpSuggestions.length > 0
+          ? fallback.followUpSuggestions
+          : ['Giải pháp áp dụng ngay', 'Kỹ năng thực chiến', 'Kế hoạch hành động']
+      );
+
       setMessages((prev) => {
         const exists = prev.some((m) => m.id === assistantMsgId);
         if (exists) {
@@ -225,8 +257,13 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
             {messages.map((msg) => {
               const isAssistant = msg.sender === 'assistant';
+              const poolMap = new Map<string, Book>();
+              for (const b of books) poolMap.set(b.id, b);
+              for (const b of discoveredBooks) poolMap.set(b.id, b);
               const suggested = msg.suggestedBookIds
-                ? books.filter((b) => msg.suggestedBookIds?.includes(b.id))
+                ? msg.suggestedBookIds
+                    .map((id) => poolMap.get(id))
+                    .filter((b): b is Book => Boolean(b))
                 : [];
 
               return (

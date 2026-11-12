@@ -1,6 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Book } from '../types/book';
-import { formatReadingTime, getRelatedBooksByAttribute } from '../utils/bookRecommender';
+import {
+  formatReadingTime,
+  getRelatedBooksByAttribute,
+  getRelatedBooksByContent,
+  buildRelatedBookSearchQueries,
+} from '../utils/bookRecommender';
+import { searchVietnameseBooks } from '../services/googleBooks';
 import { BookRowGrid } from '../components/BookRowGrid';
 import { QuoteHighlighter } from '../components/QuoteHighlighter';
 import { ArrowLeft, BookOpen, Quote, Sparkles, Share2, Check, ExternalLink, Bookmark } from 'lucide-react';
@@ -15,7 +21,7 @@ interface BookDetailViewProps {
   onToggleFavorite?: (book: Book) => void;
 }
 
-type RelatedFilterMode = 'author' | 'publisher' | 'year' | 'genre';
+type RelatedFilterMode = 'similar' | 'author' | 'publisher' | 'year';
 
 export const BookDetailView: React.FC<BookDetailViewProps> = ({
   book,
@@ -28,48 +34,103 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [relatedMode, setRelatedMode] = useState<RelatedFilterMode>('author');
+  const [relatedMode, setRelatedMode] = useState<RelatedFilterMode>('similar');
+  const [liveRelatedBooks, setLiveRelatedBooks] = useState<Book[]>([]);
+  const [isLoadingRelated, setIsLoadingRelated] = useState<boolean>(false);
   const relatedSectionRef = useRef<HTMLElement>(null);
 
   React.useEffect(() => {
     setImgError(false);
+    setRelatedMode('similar');
   }, [book.id, book.coverUrl]);
 
-  // Related collections
-  const booksBySameAuthor = getRelatedBooksByAttribute(allBooks, {
-    type: 'author',
-    value: book.author,
-    excludeBookId: book.id,
-  });
+  // Tự động truy vấn Google Books API để bổ sung các đầu sách liên quan mật thiết về nội dung & cùng tác giả
+  React.useEffect(() => {
+    let cancelled = false;
+    const { topicQuery, authorQuery } = buildRelatedBookSearchQueries(book);
 
-  const booksBySamePublisher = getRelatedBooksByAttribute(allBooks, {
-    type: 'publisher',
-    value: book.publisher,
-    excludeBookId: book.id,
-  });
+    setIsLoadingRelated(true);
+    Promise.all([
+      searchVietnameseBooks(topicQuery, 12).catch(() => [] as Book[]),
+      authorQuery ? searchVietnameseBooks(authorQuery, 8).catch(() => [] as Book[]) : Promise.resolve([] as Book[]),
+    ])
+      .then(([byTopic, byAuthor]) => {
+        if (cancelled) return;
+        const merged = [...byTopic, ...byAuthor].filter(
+          (b) => b.id !== book.id && Boolean(b.coverUrl)
+        );
+        setLiveRelatedBooks(merged);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingRelated(false);
+      });
 
-  const booksBySameYear = getRelatedBooksByAttribute(allBooks, {
-    type: 'year',
-    value: book.publishYear,
-    excludeBookId: book.id,
-  });
+    return () => {
+      cancelled = true;
+    };
+  }, [book]);
 
-  const booksBySameEmotion = allBooks
-    .filter((b) => b.id !== book.id && (b.category === book.category || b.style === book.style))
-    .slice(0, 4);
+  // Gộp kho sách cục bộ + sách liên quan vừa tải trực tiếp từ Google Books (khử trùng lặp)
+  const combinedBooksPool = useMemo(() => {
+    const map = new Map<string, Book>();
+    for (const b of allBooks) {
+      if (b.id !== book.id) map.set(b.id, b);
+    }
+    for (const b of liveRelatedBooks) {
+      if (b.id !== book.id && !map.has(b.id)) map.set(b.id, b);
+    }
+    return Array.from(map.values());
+  }, [allBooks, liveRelatedBooks, book.id]);
+
+  // Sách gợi ý có nội dung & chủ đề liên quan mật thiết nhất
+  const booksBySimilarContent = useMemo(
+    () => getRelatedBooksByContent(book, combinedBooksPool, 8),
+    [book, combinedBooksPool]
+  );
+
+  // Related collections theo thuộc tính
+  const booksBySameAuthor = useMemo(
+    () =>
+      getRelatedBooksByAttribute(combinedBooksPool, {
+        type: 'author',
+        value: book.author,
+        excludeBookId: book.id,
+      }).slice(0, 8),
+    [combinedBooksPool, book.author, book.id]
+  );
+
+  const booksBySamePublisher = useMemo(
+    () =>
+      getRelatedBooksByAttribute(combinedBooksPool, {
+        type: 'publisher',
+        value: book.publisher,
+        excludeBookId: book.id,
+      }).slice(0, 8),
+    [combinedBooksPool, book.publisher, book.id]
+  );
+
+  const booksBySameYear = useMemo(
+    () =>
+      getRelatedBooksByAttribute(combinedBooksPool, {
+        type: 'year',
+        value: book.publishYear,
+        excludeBookId: book.id,
+      }).slice(0, 8),
+    [combinedBooksPool, book.publishYear, book.id]
+  );
 
   // Active list of books based on relatedMode
   const activeRelatedBooks = (() => {
     switch (relatedMode) {
       case 'author':
-        return booksBySameAuthor.length > 0 ? booksBySameAuthor : booksBySameEmotion;
+        return booksBySameAuthor;
       case 'publisher':
-        return booksBySamePublisher.length > 0 ? booksBySamePublisher : booksBySameEmotion;
+        return booksBySamePublisher;
       case 'year':
-        return booksBySameYear.length > 0 ? booksBySameYear : booksBySameEmotion;
-      case 'genre':
+        return booksBySameYear;
+      case 'similar':
       default:
-        return booksBySameEmotion;
+        return booksBySimilarContent;
     }
   })();
 
@@ -426,6 +487,19 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
         <div className="flex flex-wrap gap-2 pt-2">
           <button
             type="button"
+            onClick={() => setRelatedMode('similar')}
+            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border flex items-center gap-1.5 ${
+              relatedMode === 'similar'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Cùng nội dung &amp; chủ đề ({booksBySimilarContent.length})</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setRelatedMode('author')}
             className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
               relatedMode === 'author'
@@ -459,18 +533,6 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
           >
             Cùng năm phát hành: {book.publishYear} ({booksBySameYear.length})
           </button>
-
-          <button
-            type="button"
-            onClick={() => setRelatedMode('genre')}
-            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-              relatedMode === 'genre'
-                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            Cùng chủ đề &amp; định hướng ({booksBySameEmotion.length})
-          </button>
         </div>
 
         {/* Related Books Grid using BookRowGrid */}
@@ -482,9 +544,22 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
               onFilterByAttribute={onFilterByAttribute}
             />
           </div>
-        ) : (
+        ) : isLoadingRelated ? (
           <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-sm text-slate-500">
-            Chưa có thêm tác phẩm cùng tiêu chí này trong kho lưu trữ.
+            Đang tìm các đầu sách liên quan mật thiết tới <strong>{book.title}</strong>...
+          </div>
+        ) : (
+          <div className="p-8 text-center bg-white rounded-xl border border-slate-200 text-sm text-slate-500 space-y-3">
+            <p>Chưa tìm thấy thêm tác phẩm trùng tiêu chí này.</p>
+            {relatedMode !== 'similar' && booksBySimilarContent.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setRelatedMode('similar')}
+                className="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 font-semibold text-xs hover:bg-indigo-100 transition-colors cursor-pointer"
+              >
+                Xem {booksBySimilarContent.length} sách cùng nội dung &amp; chủ đề
+              </button>
+            )}
           </div>
         )}
       </section>
