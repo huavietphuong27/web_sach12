@@ -3,6 +3,7 @@ import React from 'react';
 interface ErrorBoundaryState {
   hasError: boolean;
   message: string;
+  stack?: string;
 }
 
 /** Bắt lỗi render để hiện thông báo thay vì trang trắng. */
@@ -13,7 +14,12 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
   }
 
   static getDerivedStateFromError(error: unknown): Partial<ErrorBoundaryState> {
-    return { hasError: true, message: String((error as Error)?.message || error) };
+    const err = error as Error;
+    return {
+      hasError: true,
+      message: String(err?.message || error),
+      stack: err?.stack || '',
+    };
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
@@ -38,6 +44,7 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
             }}
           >
             {this.state.message}
+            {this.state.stack ? `\n\nStack trace:\n${this.state.stack}` : ''}
           </pre>
         </div>
       );
