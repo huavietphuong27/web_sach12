@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquareText, X, Send, BookOpen, Sparkles, ChevronDown } from 'lucide-react';
 import { Book, ChatMessage } from '../types/book';
 import { generateAssistantResponse } from '../utils/bookRecommender';
-import { generateWithGemini } from '../services/aiAdvisor';
+import { generateWithGeminiStream } from '../services/aiAdvisor';
 
 interface FloatingChatProps {
   books: Book[];
@@ -79,41 +79,101 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
       timestamp: 'Vừa xong',
     };
 
+    const assistantMsgId = `a-${Date.now()}`;
+    const priorHistory = messages
+      .filter((m) => m.id !== 'welcome')
+      .map((m) => ({ sender: m.sender, text: m.text }));
+
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
     setIsTyping(true);
 
-    let replyText: string;
-    let suggestedBookIds: string[] = [];
-
     try {
-      const result = await generateWithGemini(trimmed, books);
-      replyText = result.replyText;
-      suggestedBookIds = result.suggestedBookIds;
+      let streamedStarted = false;
+      const result = await generateWithGeminiStream(
+        trimmed,
+        books,
+        (partialText) => {
+          if (!streamedStarted) {
+            streamedStarted = true;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: assistantMsgId,
+                sender: 'assistant',
+                text: partialText,
+                timestamp: 'Vừa xong',
+                suggestedBookIds: [],
+              },
+            ]);
+          } else {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantMsgId ? { ...m, text: partialText } : m))
+            );
+          }
+        },
+        priorHistory
+      );
+
+      setMessages((prev) => {
+        const exists = prev.some((m) => m.id === assistantMsgId);
+        if (exists) {
+          return prev.map((m) =>
+            m.id === assistantMsgId
+              ? {
+                  ...m,
+                  text: result.replyText,
+                  suggestedBookIds: result.suggestedBookIds,
+                }
+              : m
+          );
+        }
+        return [
+          ...prev,
+          {
+            id: assistantMsgId,
+            sender: 'assistant',
+            text: result.replyText,
+            timestamp: 'Vừa xong',
+            suggestedBookIds: result.suggestedBookIds,
+          },
+        ];
+      });
+
       if (result.followUpSuggestions && result.followUpSuggestions.length > 0) {
         setQuickSuggestions(result.followUpSuggestions);
       }
     } catch {
       const fallback = generateAssistantResponse(trimmed, books);
-      replyText = fallback.replyText;
-      suggestedBookIds = fallback.suggestedBooks.map((b) => b.id);
-      // Tự động sinh gợi ý động ngắn gọn liên quan tới câu hỏi của khách hàng
+      const suggestedBookIds = fallback.suggestedBooks.map((b) => b.id);
       setQuickSuggestions([
         'Giải pháp áp dụng ngay',
         'Kỹ năng thực chiến',
         'Kế hoạch hành động',
       ]);
+      setMessages((prev) => {
+        const exists = prev.some((m) => m.id === assistantMsgId);
+        if (exists) {
+          return prev.map((m) =>
+            m.id === assistantMsgId
+              ? { ...m, text: fallback.replyText, suggestedBookIds }
+              : m
+          );
+        }
+        return [
+          ...prev,
+          {
+            id: assistantMsgId,
+            sender: 'assistant',
+            text: fallback.replyText,
+            timestamp: 'Vừa xong',
+            suggestedBookIds,
+          },
+        ];
+      });
+    } finally {
+      setIsTyping(false);
     }
-
-    const assistantMsg: ChatMessage = {
-      id: `a-${Date.now()}`,
-      sender: 'assistant',
-      text: replyText,
-      timestamp: 'Vừa xong',
-      suggestedBookIds,
-    };
-    setMessages((prev) => [...prev, assistantMsg]);
-    setIsTyping(false);
   };
 
   const handleQuickPrompt = (prompt: string) => {

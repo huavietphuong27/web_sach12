@@ -1,7 +1,9 @@
-// AI Book Advisor — mô hình ngôn ngữ đóng vai trò người bạn cố vấn sách thông minh:
-//   Bước 1: Phân tích sâu tâm lý & bản chất vấn đề (dù câu hỏi phức tạp) → { searchQuery, alternateQuery, categoryFilter, analysis, followUpQuestion, followUpSuggestions }
-//   Bước 2: Đối soát danh sách sách → chọn đúng sách giải quyết triệt để vấn đề, viết lý do như người bạn tâm tình + lời khuyên hành động chi tiết.
-// Nếu Gemini lỗi (thiếu key / mất mạng / 429) → dùng bộ phân tích dự phòng thông minh.
+// AI Book Advisor — Cố vấn sách thông minh thế hệ mới (Gemini 3.8 Flash + Multi-Model Fallback Free Tier):
+//   1. Multi-Model Waterfall (100% Free Tier): gemini-3.8-flash -> gemini-3.5-flash-lite -> gemini-2.5-pro
+//   2. System Instruction + OpenAPI Response Schema: ép chuẩn cấu trúc JSON 100%, không lỗi parse
+//   3. Multi-turn Conversation Memory: ghi nhớ mạch hội thoại nhiều lượt liên tiếp
+//   4. Cá nhân hóa theo Tủ sách yêu thích (localStorage): hiểu gu đọc & tránh gợi ý trùng sách đã lưu
+//   5. Real-time SSE Streaming (streamGenerateContent): phản hồi chữ chạy mượt mà theo thời gian thực
 import { Book } from '../types/book';
 import { fetchLiveBooks, AdvisorBook } from './googleBooks';
 
@@ -39,39 +41,43 @@ export interface GeminiRecommendation {
 }
 
 const KEY: string | undefined = import.meta.env.VITE_GEMINI_API_KEY;
-const ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const BASE_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+/**
+ * Chuỗi mô hình Gemini miễn phí (Free Tier) tự động xoay vòng dự phòng:
+ * 1. gemini-3.8-flash: Model Flash thông minh nhất hiện tại (Free Tier, Thinking, 64K output)
+ * 2. gemini-3.5-flash-lite: Tốc độ cực nhanh, hạn mức Free Tier rộng khi model chính gặp 429
+ * 3. gemini-2.5-pro: Model Pro suy luận sâu dự phòng cuối trên Free Tier
+ */
+export const FREE_GEMINI_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-2.5-pro',
+] as const;
+
+const FAVORITES_STORAGE_KEY = 'websach-favorites-v1';
 
 export function hasGeminiKey(): boolean {
   return Boolean(KEY && KEY.length > 10 && !KEY.includes('PASTE'));
 }
 
-export const EXACT_BOOK_RECOMMENDER_PROMPT = `# NHIỆM VỤ DUY NHẤT CỦA BẠN
-Bạn là một Hệ thống Gợi ý Sách Chính xác Tuyệt đối. Nhiệm vụ của bạn là đọc lời chat của người dùng và trả về NGAY LẬP TỨC danh sách 3 cuốn sách khớp hoàn toàn với những chi tiết, hoàn cảnh và cảm xúc có trong lời chat đó.
+export const EXACT_BOOK_RECOMMENDER_PROMPT = `# NHIỆM VỤ CỐT LÕI CỦA BẠN
+Bạn là **BookMind AI** — một người bạn tri kỷ thông thái, tinh tế và am hiểu sâu sắc về sách. Khi người dùng chia sẻ bất kỳ câu nói, tâm sự, hoàn cảnh hay mục tiêu nào:
+1. Lắng nghe sâu từng chi tiết và bối cảnh thực tế trong lời người dùng nói (kể cả ẩn ý hay nỗi niềm chưa nói hết).
+2. Kết nối mạch trò chuyện trước đó (nếu có) và gu đọc từ Tủ sách yêu thích của người dùng để tư vấn tự nhiên, liền mạch.
+3. Chọn ra **3 cuốn sách xuất sắc, có thật và khớp nhất** với hoàn cảnh đó (ưu tiên tránh lặp lại sách người dùng đã lưu trong Tủ sách yêu thích trừ khi họ hỏi trực tiếp).
+4. Với mỗi cuốn sách, giải thích cụ thể và chân thành **vì sao cuốn sách đó khớp với chính câu nói/vấn đề của người dùng**, kèm theo lời khuyên thực tế dễ áp dụng ngay.
 
-# QUY TẮC CẤM (BẮT BUỘC TUÂN THỦ)
-1. TUYỆT ĐỐI KHÔNG chào hỏi, không dẫn nhập (Ví dụ: Cấm viết "Chào bạn", "Mình hiểu cảm giác của bạn", "Dưới đây là 3 cuốn sách...").
-2. TUYỆT ĐỐI KHÔNG viết lời kết, không chúc tụng, không đặt câu hỏi ngược lại ở cuối bài.
-3. TUYỆT ĐỐI KHÔNG gợi ý sách chung chung, sáo rỗng (như Đắc Nhân Tâm, Nhà Giả Kim) nếu chúng không khớp trực tiếp với chi tiết cụ thể trong lời chat.
-4. TUYỆT ĐỐI KHÔNG bịa ra tên sách hoặc tình tiết không có thật. Chỉ chọn sách có thật 100%, đúng tên tác giả.
-5. Bắt đầu câu trả lời ngay bằng cuốn sách số 1.
-
-# QUY TẮC CHỌN SÁCH BÁM SÁT LỜI CHAT
-Trước khi đưa ra kết quả, hãy ngầm tách từng từ khóa, sự việc, bối cảnh (ví dụ: thất nghiệp, cãi nhau với người yêu, mưa đêm, áp lực tiền bạc, chán nản...) và cảm xúc trong lời chat của người dùng. Chọn ra đúng 3 cuốn sách:
-- Cuốn 1: Có cốt truyện, nhân vật hoặc bối cảnh đời thực GIỐNG HỆT hoàn cảnh trong lời chat.
-- Cuốn 2: Phân tích và giải quyết trực diện vấn đề hoặc cảm xúc mà người dùng đang nhắc tới.
-- Cuốn 3: Mở ra một góc nhìn mới hoặc lối thoát cho đúng tình huống trong lời chat.
-
-# ĐỊNH DẠNG TRẢ LỜI BẮT BUỘC (CHỈ TRẢ VỀ ĐÚNG KHUNG NÀY)
+# QUY TẮC TRÌNH BÀY KHI TRẢ LỜI TRỰC TIẾP BẰNG MARKDOWN
+- Không mở đầu sáo rỗng, đi thẳng vào danh sách 3 cuốn sách.
+- Trình bày đúng cấu trúc sau cho mỗi cuốn sách:
 
 ### 1. [Tên Sách] – [Tên Tác Giả]
-* **Thể loại & Tình trạng:** [Thể loại chi tiết] | [Đã xuất bản tiếng Việt / Sách tiếng Anh]
-* **Đối chiếu trực tiếp với lời chat của bạn:**
-  - *Chi tiết bạn nhắc đến:* "[Trích dẫn lại chính xác từ ngữ/chi tiết/cảm xúc trong lời chat của người dùng]"
-  - *Điểm khớp hoàn toàn trong sách:* [Giải thích cụ thể vì sao cuốn sách này khớp 100% với chi tiết vừa trích dẫn ở trên. Nhân vật hay nội dung sách có điểm gì giống hệt hoàn cảnh của người dùng?]
-* **Nội dung chi tiết của sách:** [Tóm tắt sâu sắc cốt truyện hoặc hệ thống luận điểm chính của sách trong khoảng 150-200 chữ. Nêu rõ bối cảnh, nhân vật và vấn đề trung tâm, không viết chung chung].
-* **Tình tiết / Trích dẫn đắt giá nhất:** [Mô tả 1 cảnh cụ thể trong sách, 1 hoàn cảnh của nhân vật, hoặc 1 câu trích dẫn có thật trong sách chạm đúng vào câu chuyện người dùng vừa nói].
-* **Giá trị nhận được sau khi đọc:** [Cuốn sách này giải quyết được gì cho đúng trạng thái hiện tại của người dùng?].
+- **Chấm điểm độ khớp:** [Số điểm]/10
+- **Chi tiết trong lời bạn nói:** "[Trích dẫn lại cụm từ/ý quan trọng trong lời chat của người dùng]"
+- **Vì sao cuốn sách này dành riêng cho bạn:**
+  - **Giải quyết trực tiếp:** [Chỉ rõ chương/ý tưởng hoặc phương pháp cốt lõi trong sách xử lý đúng chi tiết vừa trích dẫn ở trên]
+  - **Giá trị thực tế nhận được:** [Bài học/hành động cụ thể người dùng áp dụng được ngay sau khi đọc]
 
 ---
 
@@ -84,70 +90,252 @@ Trước khi đưa ra kết quả, hãy ngầm tách từng từ khóa, sự vi�
 *(Trình bày đầy đủ các mục giống hệt cuốn 1)*`;
 
 /**
- * Tiện ích chờ thời gian mili-giây
+ * Schema JSON chuẩn OpenAPI 3.0 cho Bước 1 (decideSearch)
  */
+const DECIDE_SEARCH_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    coreProblem: { type: 'STRING' },
+    searchQuery: { type: 'STRING' },
+    alternateQuery: { type: 'STRING' },
+    categoryFilter: { type: 'STRING', nullable: true },
+    isTrending: { type: 'BOOLEAN' },
+    analysis: { type: 'STRING' },
+    followUpQuestion: { type: 'STRING' },
+    followUpSuggestions: {
+      type: 'ARRAY',
+      items: { type: 'STRING' },
+    },
+  },
+  required: [
+    'coreProblem',
+    'searchQuery',
+    'isTrending',
+    'analysis',
+    'followUpQuestion',
+    'followUpSuggestions',
+  ],
+};
+
+/**
+ * Schema JSON chuẩn OpenAPI 3.0 cho Bước 2 (composeTurn)
+ */
+const COMPOSE_TURN_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    analysis: { type: 'STRING' },
+    recommendedBooks: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          id: { type: 'STRING' },
+          matchReason: { type: 'STRING' },
+        },
+        required: ['id', 'matchReason'],
+      },
+    },
+    followUpQuestion: { type: 'STRING' },
+    followUpSuggestions: {
+      type: 'ARRAY',
+      items: { type: 'STRING' },
+    },
+  },
+  required: ['analysis', 'recommendedBooks', 'followUpQuestion', 'followUpSuggestions'],
+};
+
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Gọi Google Gemini 2.0 Flash với cơ chế Exponential Backoff & Jitter:
- * - Tự động thử lại tối đa 3 lần khi gặp HTTP 429 (Rate Limit) hoặc HTTP 503 (Overloaded)
- * - Tăng thời gian chờ theo lũy tiến: 800ms -> 1600ms -> 3200ms (+ random jitter)
+ * Đọc danh sách sách người dùng đã lưu trong Tủ sách yêu thích (localStorage)
+ * để cá nhân hóa gợi ý và tránh gợi ý trùng sách đã có.
  */
-async function callGemini(prompt: string, expectJson = true, maxRetries = 2): Promise<string> {
+function getFavoritesContextSummary(): string {
+  if (typeof window === 'undefined' || !window.localStorage) return '';
+  try {
+    const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!raw) return '';
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return '';
+    const summaries = parsed
+      .slice(0, 8)
+      .map((item: unknown) => {
+        if (typeof item === 'object' && item !== null && 'title' in item) {
+          const b = item as { title?: string; author?: string; genre?: string };
+          return `${b.title || ''}${b.author ? ` (${b.author})` : ''}${b.genre ? ` [${b.genre}]` : ''}`;
+        }
+        return '';
+      })
+      .filter(Boolean);
+    if (summaries.length === 0) return '';
+    return `\n[Hồ sơ cá nhân hóa - Sách người dùng đã lưu yêu thích: ${summaries.join('; ')}. Hãy thấu hiểu gu đọc này và ưu tiên gợi ý những đầu sách MỚI chưa nằm trong danh sách đã lưu.]`;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Trích xuất tóm tắt hội thoại gần nhất từ advisorStore để AI nhớ ngữ cảnh đa lượt
+ */
+function getRecentAdvisorContext(): string {
+  const history = savedMessages.filter((m) => m.id !== 'welcome');
+  // Bỏ phần tử cuối nếu đó chính là tin nhắn user vừa gửi vào store
+  const prior =
+    history.length > 0 && history[history.length - 1].role === 'user'
+      ? history.slice(0, -1)
+      : history;
+  const recent = prior.slice(-6);
+  if (recent.length === 0) return '';
+
+  const lines = recent.map((m) => {
+    if (m.role === 'user') {
+      return `- Người dùng: "${m.text || ''}"`;
+    }
+    const bookTitles = (m.turn?.recommendedBooks || []).map((b) => b.title).join(', ');
+    return `- BookMind AI: "${(m.turn?.analysis || '').slice(0, 140)}"${
+      bookTitles ? ` (Đã gợi ý: ${bookTitles})` : ''
+    }`;
+  });
+
+  return `\n[Lịch sử trò chuyện gần đây để giữ mạch ngữ cảnh:\n${lines.join('\n')}]`;
+}
+
+/**
+ * Trích xuất phần text trả lời thực tế từ candidate của Gemini,
+ * tự động bỏ qua các part suy nghĩ nội bộ (`thought: true`) của dòng model Thinking.
+ */
+function extractCandidateText(data: unknown): string {
+  const parts = (
+    data as {
+      candidates?: Array<{
+        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+      }>;
+    }
+  )?.candidates?.[0]?.content?.parts;
+
+  if (!Array.isArray(parts) || parts.length === 0) return '';
+  const visibleParts = parts.filter((p) => !p.thought && typeof p.text === 'string');
+  if (visibleParts.length > 0) {
+    return visibleParts.map((p) => p.text).join('');
+  }
+  return parts[0]?.text || '';
+}
+
+interface CallGeminiOptions {
+  expectJson?: boolean;
+  responseSchema?: Record<string, unknown>;
+  systemInstruction?: string;
+  historyContents?: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
+  maxRetriesPerModel?: number;
+}
+
+/**
+ * Gọi hệ thống đa mô hình Gemini Free Tier (gemini-3.8-flash -> gemini-3.5-flash-lite -> gemini-2.5-pro)
+ * kết hợp System Instruction, Structured Output Schema và Exponential Backoff + Jitter.
+ */
+async function callGemini(prompt: string, options: CallGeminiOptions = {}): Promise<string> {
   if (!KEY) throw new Error('NO_KEY');
-  const generationConfig: Record<string, unknown> = { temperature: 0.6 };
+
+  const {
+    expectJson = true,
+    responseSchema,
+    systemInstruction = EXACT_BOOK_RECOMMENDER_PROMPT,
+    historyContents = [],
+    maxRetriesPerModel = 1,
+  } = options;
+
+  const generationConfig: Record<string, unknown> = {
+    temperature: expectJson ? 0.45 : 0.65,
+  };
+
   if (expectJson) {
     generationConfig.responseMimeType = 'application/json';
-  }
-
-  let attempt = 0;
-  while (attempt <= maxRetries) {
-    try {
-      const res = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      }
-
-      // Xử lý mã lỗi Rate Limit 429 hoặc Server 500/503: thử lại với backoff
-      if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
-        attempt++;
-        const jitter = Math.floor(Math.random() * 300);
-        const delayMs = Math.pow(2, attempt) * 600 + jitter;
-        console.warn(`[GeminiAdvisor] Gặp mã HTTP ${res.status}, đang thử lại lần ${attempt}/${maxRetries} sau ${delayMs}ms...`);
-        await wait(delayMs);
-        continue;
-      }
-
-      throw new Error(`Gemini HTTP ${res.status}`);
-    } catch (err: unknown) {
-      if (attempt < maxRetries && (err as Error)?.message?.includes('fetch')) {
-        attempt++;
-        await wait(Math.pow(2, attempt) * 500);
-        continue;
-      }
-      throw err;
+    if (responseSchema) {
+      generationConfig.responseSchema = responseSchema;
     }
   }
 
-  throw new Error('Gemini API Max Retries Exceeded');
+  const contents = [
+    ...historyContents,
+    {
+      role: 'user',
+      parts: [{ text: prompt }],
+    },
+  ];
+
+  let lastError: unknown = new Error('Gemini API failed');
+
+  for (const modelName of FREE_GEMINI_MODELS) {
+    const endpoint = `${BASE_API_URL}/${modelName}:generateContent`;
+    let attempt = 0;
+
+    while (attempt <= maxRetriesPerModel) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: systemInstruction }],
+            },
+            contents,
+            generationConfig,
+          }),
+        });
+
+        if (res.ok) {
+          const data: unknown = await res.json();
+          const text = extractCandidateText(data);
+          if (text) return text;
+        }
+
+        // Nếu gặp 429 (Rate Limit) hoặc 500/503: thử backoff rồi chuyển sang model Free Tier tiếp theo
+        if (res.status === 429 || res.status >= 500) {
+          if (attempt < maxRetriesPerModel) {
+            attempt++;
+            const jitter = Math.floor(Math.random() * 250);
+            const delayMs = Math.pow(2, attempt) * 500 + jitter;
+            console.warn(
+              `[GeminiAdvisor] ${modelName} gặp HTTP ${res.status}, thử lại ${attempt}/${maxRetriesPerModel} sau ${delayMs}ms...`
+            );
+            await wait(delayMs);
+            continue;
+          }
+          console.warn(
+            `[GeminiAdvisor] Chuyển tiếp từ ${modelName} sang mô hình Free Tier dự phòng tiếp theo...`
+          );
+          break;
+        }
+
+        // Nếu model không khả dụng (404/400), chuyển ngay sang model tiếp theo trong chuỗi
+        lastError = new Error(`Gemini ${modelName} HTTP ${res.status}`);
+        break;
+      } catch (err: unknown) {
+        lastError = err;
+        if (attempt < maxRetriesPerModel) {
+          attempt++;
+          await wait(Math.pow(2, attempt) * 400);
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 function parseJson(raw: string): Record<string, unknown> | null {
-  const m = raw.match(/\{[\s\S]*\}/);
-  if (!m) return null;
   try {
-    return JSON.parse(m[0]) as Record<string, unknown>;
+    return JSON.parse(raw) as Record<string, unknown>;
   } catch {
-    return null;
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    try {
+      return JSON.parse(m[0]) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -155,7 +343,7 @@ const alertFor = (code?: string) =>
   '⚠️ Không kết nối được trực tiếp tới Google Books nên mình đang dùng kho sách tuyển chọn dự phòng.' +
   (code ? ` (mã: ${code})` : '');
 
-// Bước 1: phân tích ý định sâu sắc
+// Bước 1: phân tích ý định sâu sắc có kèm ngữ cảnh hội thoại & tủ sách yêu thích
 async function decideSearch(userText: string): Promise<{
   searchQuery: string;
   alternateQuery?: string;
@@ -165,28 +353,25 @@ async function decideSearch(userText: string): Promise<{
   followUpQuestion: string;
   followUpSuggestions: string[];
 }> {
-  const prompt = `${EXACT_BOOK_RECOMMENDER_PROMPT}
+  const contextBlock = `${getRecentAdvisorContext()}${getFavoritesContextSummary()}`;
 
-Người dùng nói: "${userText}"
+  const prompt = `Người dùng nói: "${userText}"${contextBlock}
 
 Hãy phân tích kỹ nút thắt cốt lõi và chọn từ khóa giải pháp tiếng Việt chuẩn xác nhất để truy vấn Google Books.
-Trả về DUY NHẤT một JSON đúng cấu trúc (không kèm chữ nào khác ngoài JSON):
-{
-  "coreProblem": "1 câu phân tích nút thắt cốt lõi thực sự của người dùng",
-  "searchQuery": "Từ khóa tiếng Việt giải pháp tối ưu cho Google Books (2-4 từ, vd: 'kỹ năng lãnh đạo', 'quản trị cảm xúc', 'nghệ thuật giao tiếp')",
-  "alternateQuery": "Từ khóa giải pháp thay thế nếu từ khóa chính ít sách",
-  "categoryFilter": "thể loại tiếng Anh chuẩn Google nếu phù hợp (Psychology, Self-Help, Business, Fiction, Technology) hoặc null",
-  "isTrending": true nếu người dùng hỏi sách hay nhất/bán chạy/xu hướng/nên đọc, ngược lại false,
-  "analysis": "2-3 câu đồng cảm ấm áp, thấu hiểu tình cảnh của người bạn và dẫn dắt giải pháp",
-  "followUpQuestion": "câu hỏi gợi mở 2 nhánh A/B ngắn gọn (vd: Bạn muốn tập trung vào kỹ năng xử lý tình huống ngay hay rèn luyện tâm lý đường dài?)",
-  "followUpSuggestions": [
-    "Gợi ý câu hỏi ngắn 1 (dưới 8 từ, đào sâu vấn đề)",
-    "Gợi ý câu hỏi ngắn 2 (dưới 8 từ, về cách hành động)",
-    "Gợi ý câu hỏi ngắn 3 (dưới 8 từ, về giải pháp khác)"
-  ]
-}`;
+Trả về JSON theo đúng cấu trúc yêu cầu:
+- coreProblem: 1 câu phân tích nút thắt cốt lõi thực sự của người dùng
+- searchQuery: Từ khóa tiếng Việt giải pháp tối ưu cho Google Books (2-4 từ, vd: "kỹ năng lãnh đạo", "quản trị cảm xúc", "nghệ thuật giao tiếp")
+- alternateQuery: Từ khóa giải pháp thay thế nếu từ khóa chính ít sách
+- categoryFilter: thể loại tiếng Anh chuẩn Google nếu phù hợp (Psychology, Self-Help, Business, Fiction, Technology) hoặc null
+- isTrending: true nếu người dùng hỏi sách hay nhất/bán chạy/xu hướng/nên đọc, ngược lại false
+- analysis: 2-3 câu đồng cảm ấm áp, thấu hiểu tình cảnh của người bạn và dẫn dắt giải pháp
+- followUpQuestion: câu hỏi gợi mở 2 nhánh A/B ngắn gọn
+- followUpSuggestions: 3 gợi ý câu hỏi ngắn (dưới 8 từ) đào sâu vấn đề và cách hành động`;
 
-  const raw = await callGemini(prompt);
+  const raw = await callGemini(prompt, {
+    expectJson: true,
+    responseSchema: DECIDE_SEARCH_SCHEMA,
+  });
   const j = parseJson(raw) || {};
 
   const followUpSuggestions: string[] = Array.isArray(j.followUpSuggestions)
@@ -200,7 +385,8 @@ Trả về DUY NHẤT một JSON đúng cấu trúc (không kèm chữ nào khá
   return {
     searchQuery: String(j.searchQuery || userText).slice(0, 120),
     alternateQuery: j.alternateQuery ? String(j.alternateQuery).slice(0, 120) : undefined,
-    categoryFilter: j.categoryFilter ? String(j.categoryFilter) : undefined,
+    categoryFilter:
+      j.categoryFilter && j.categoryFilter !== 'null' ? String(j.categoryFilter) : undefined,
     isTrending: Boolean(j.isTrending),
     analysis: String(j.analysis || ''),
     followUpQuestion: String(j.followUpQuestion || ''),
@@ -225,10 +411,10 @@ async function composeTurn(
     description: b.description.slice(0, 220),
   }));
 
-  const prompt = `${EXACT_BOOK_RECOMMENDER_PROMPT}
+  const contextBlock = `${getRecentAdvisorContext()}${getFavoritesContextSummary()}`;
 
-Người dùng nói: "${userText}".
-Ghi chú phân tích ban đầu: "${plan.analysis || '(không có)'}".
+  const prompt = `Người dùng nói: "${userText}".
+Ghi chú phân tích ban đầu: "${plan.analysis || '(không có)'}".${contextBlock}
 
 Danh sách sách lấy được từ hệ thống (ưu tiên chọn trong đây cuốn thực sự giải quyết nút thắt cốt lõi):
 ${JSON.stringify(compact, null, 1)}
@@ -237,26 +423,12 @@ Nhiệm vụ của bạn:
 1. Chọn từ 1 đến 3 cuốn sách (lý tưởng nhất là 2 cuốn) thực sự giải quyết đúng trăn trở sâu xa của người bạn. Nếu có cuốn không phù hợp chủ đề thực sự, hãy loại bỏ.
 2. Với mỗi cuốn sách được chọn, viết "matchReason" chi tiết, đầy đặn theo đúng 2 phần:
    - **Chia sẻ từ người bạn:** Viết 3-5 câu chi tiết, chỉ rõ cuốn sách này sẽ tháo gỡ khó khăn của bạn ra sao.
-   - **Lời khuyên thực tế cho bạn:** Viết 2-3 câu hướng dẫn áp dụng ngay hoặc chỉ rõ chương sách nên đọc trước tiên.
+   - **Lời khuyên thực tế cho bạn:** Viết 2-3 câu hướng dẫn áp dụng ngay hoặc chỉ rõ chương sách nên đọc trước tiên.`;
 
-Trả về DUY NHẤT một JSON đúng cấu trúc:
-{
-  "analysis": "2-3 câu ấm áp, thấu cảm sâu sắc như một người bạn tri kỷ chia sẻ tâm tư và dẫn vào sách gợi ý.",
-  "recommendedBooks": [
-    {
-      "id": "đúng id trong danh sách trên",
-      "matchReason": "**Chia sẻ từ người bạn:** [3-5 câu giải thích chân thành, cụ thể tại sao cuốn này giải quyết nút thắt của bạn]\\n\\n**Lời khuyên thực tế cho bạn:** [2-3 câu lời khuyên hành động dễ làm ngay hôm nay hoặc chương sách cần đọc]"
-    }
-  ],
-  "followUpQuestion": "câu hỏi gợi mở 2 nhánh A/B ngắn gọn",
-  "followUpSuggestions": [
-    "Câu hỏi gợi ý 1 liên quan mật thiết",
-    "Câu hỏi gợi ý 2",
-    "Câu hỏi gợi ý 3"
-  ]
-}`;
-
-  const raw = await callGemini(prompt);
+  const raw = await callGemini(prompt, {
+    expectJson: true,
+    responseSchema: COMPOSE_TURN_SCHEMA,
+  });
   const j = parseJson(raw) || {};
   const byId = new Map(books.map((b) => [b.id, b]));
   const picked: AdvisorBook[] = [];
@@ -367,28 +539,9 @@ function extractTitlesFromMarkdown(text: string): string[] {
   return titles;
 }
 
-/** Gợi ý sách chuẩn xác tuyệt đối bám sát từng chi tiết lời chat người dùng */
-export async function generateWithGemini(
-  userText: string,
-  books: Book[]
-): Promise<GeminiRecommendation> {
-  if (!hasGeminiKey()) {
-    throw new Error('Thiếu Gemini API key');
-  }
-
-  const prompt = `${EXACT_BOOK_RECOMMENDER_PROMPT}
-
----
-Lời chat của người dùng: "${userText}"`;
-
-  // Gọi Gemini trả về trực tiếp Markdown (không ép JSON để bắt đầu ngay lập tức bằng ### 1.)
-  const rawText = await callGemini(prompt, false);
-  const replyText = rawText.trim();
-
-  // Trích xuất tên các cuốn sách được gợi ý
+function buildRecommendationFromReply(replyText: string, books: Book[]): GeminiRecommendation {
   const suggestedTitles = extractTitlesFromMarkdown(replyText);
 
-  // Đối chiếu với danh sách sách hiện có trong hệ thống
   const suggestedBookIds = books
     .filter((b) =>
       suggestedTitles.some(
@@ -400,7 +553,6 @@ Lời chat của người dùng: "${userText}"`;
     )
     .map((b) => b.id);
 
-  // Sinh các nút gợi ý đào sâu năng động cho giao diện
   const followUpSuggestions =
     suggestedTitles.length >= 2
       ? [
@@ -408,15 +560,157 @@ Lời chat của người dùng: "${userText}"`;
           `Tìm hiểu thêm: ${suggestedTitles[1]}`,
           'Kế hoạch áp dụng vào thực tế',
         ]
-      : [
-          'Giải pháp áp dụng ngay',
-          'Cách tháo gỡ hoàn cảnh này',
-          'Góc nhìn mở rộng',
-        ];
+      : ['Giải pháp áp dụng ngay', 'Cách tháo gỡ hoàn cảnh này', 'Góc nhìn mở rộng'];
 
   return {
     replyText,
     suggestedBookIds,
     followUpSuggestions,
   };
+}
+
+function buildFloatingChatHistory(
+  chatHistory?: Array<{ sender: 'user' | 'assistant'; text: string }>
+): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> {
+  if (!chatHistory || chatHistory.length === 0) return [];
+  return chatHistory
+    .slice(-6)
+    .filter((m) => m.text && m.text.trim().length > 0)
+    .map((m) => ({
+      role: m.sender === 'user' ? ('user' as const) : ('model' as const),
+      parts: [{ text: m.text.slice(0, 600) }],
+    }));
+}
+
+/** Gợi ý sách chuẩn xác tuyệt đối bám sát từng chi tiết lời chat người dùng */
+export async function generateWithGemini(
+  userText: string,
+  books: Book[],
+  chatHistory?: Array<{ sender: 'user' | 'assistant'; text: string }>
+): Promise<GeminiRecommendation> {
+  if (!hasGeminiKey()) {
+    throw new Error('Thiếu Gemini API key');
+  }
+
+  const catalogPreview = books
+    .slice(0, 18)
+    .map((b) => `- ${b.title} – ${b.author} (${b.genre})`)
+    .join('\n');
+
+  const prompt = `Lời chat của người dùng: "${userText}"${getFavoritesContextSummary()}
+${
+  catalogPreview
+    ? `\n[Danh sách sách hiện có trên kệ hệ thống (ưu tiên chọn nếu thật sự khớp, hoặc chọn sách nổi tiếng có thật ngoài đời):\n${catalogPreview}]`
+    : ''
+}`;
+
+  const rawText = await callGemini(prompt, {
+    expectJson: false,
+    systemInstruction: EXACT_BOOK_RECOMMENDER_PROMPT,
+    historyContents: buildFloatingChatHistory(chatHistory),
+  });
+
+  return buildRecommendationFromReply(rawText.trim(), books);
+}
+
+/**
+ * Phản hồi Streaming theo thời gian thực (SSE) cho khung chat nổi:
+ * - Gọi `:streamGenerateContent?alt=sse` trên chuỗi model Free Tier (`gemini-3.8-flash` -> `gemini-3.5-flash-lite`)
+ * - Cập nhật từng cụm từ ngay khi AI đang viết qua callback `onChunk`
+ * - Tự động fallback sang `generateWithGemini` nếu trình duyệt/mạng chặn stream
+ */
+export async function generateWithGeminiStream(
+  userText: string,
+  books: Book[],
+  onChunk: (partialText: string) => void,
+  chatHistory?: Array<{ sender: 'user' | 'assistant'; text: string }>
+): Promise<GeminiRecommendation> {
+  if (!hasGeminiKey() || !KEY) {
+    throw new Error('Thiếu Gemini API key');
+  }
+
+  const catalogPreview = books
+    .slice(0, 18)
+    .map((b) => `- ${b.title} – ${b.author} (${b.genre})`)
+    .join('\n');
+
+  const prompt = `Lời chat của người dùng: "${userText}"${getFavoritesContextSummary()}
+${
+  catalogPreview
+    ? `\n[Danh sách sách hiện có trên kệ hệ thống (ưu tiên chọn nếu thật sự khớp, hoặc chọn sách nổi tiếng có thật ngoài đời):\n${catalogPreview}]`
+    : ''
+}`;
+
+  const contents = [
+    ...buildFloatingChatHistory(chatHistory),
+    {
+      role: 'user',
+      parts: [{ text: prompt }],
+    },
+  ];
+
+  for (const modelName of FREE_GEMINI_MODELS) {
+    const streamEndpoint = `${BASE_API_URL}/${modelName}:streamGenerateContent?alt=sse`;
+    try {
+      const res = await fetch(streamEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: EXACT_BOOK_RECOMMENDER_PROMPT }],
+          },
+          contents,
+          generationConfig: {
+            temperature: 0.65,
+          },
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        continue;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let accumulated = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmedLine = line.trim();
+          if (!trimmedLine.startsWith('data:')) continue;
+          const jsonStr = trimmedLine.slice(5).trim();
+          if (!jsonStr || jsonStr === '[DONE]') continue;
+          try {
+            const parsed: unknown = JSON.parse(jsonStr);
+            const chunkText = extractCandidateText(parsed);
+            if (chunkText) {
+              accumulated += chunkText;
+              onChunk(accumulated);
+            }
+          } catch {
+            // Bỏ qua dòng SSE chưa hoàn chỉnh
+          }
+        }
+      }
+
+      if (accumulated.trim().length > 0) {
+        return buildRecommendationFromReply(accumulated.trim(), books);
+      }
+    } catch {
+      // Thử model tiếp theo trong chuỗi Free Tier
+    }
+  }
+
+  // Fallback về chế độ gọi chuẩn nếu SSE stream không khả dụng
+  const finalResult = await generateWithGemini(userText, books, chatHistory);
+  onChunk(finalResult.replyText);
+  return finalResult;
 }
