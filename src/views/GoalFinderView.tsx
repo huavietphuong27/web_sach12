@@ -12,6 +12,9 @@ import {
 } from '../services/recommendationModels';
 import { fetchExtraDatasetBatch, EXTRA_QUERY_BATCHES } from '../services/googleBooks';
 import { BookRowGrid } from '../components/BookRowGrid';
+import { useAuth } from '../context/AuthContext';
+import { userPreferenceEngine } from '../services/userPreferenceEngine';
+import { eventTracker } from '../services/eventTracker';
 import {
   Sparkles,
   RotateCcw,
@@ -58,6 +61,8 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
   const [showBenchmark, setShowBenchmark] = useState<boolean>(true);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState<boolean>(true);
 
+  const { currentUser } = useAuth();
+
   // State nạp thêm dữ liệu
   const [batchIndex, setBatchIndex] = useState<number>(0);
   const [isFetchingData, setIsFetchingData] = useState<boolean>(false);
@@ -85,6 +90,7 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
+      const userPref = userPreferenceEngine.buildPreferenceSummary(currentUser?.id);
       const { results: ranked, executionTimeMs: timeMs } = engine.rankBooks(
         {
           query,
@@ -92,12 +98,21 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
           preferredLength: length,
           style,
           favoriteBookIds,
+          userPreference: userPref,
+          enableDiversityMMR: true,
         },
         modelType
       );
       setResults(ranked);
       setExecutionTimeMs(timeMs);
       setIsLoading(false);
+
+      // Tự động ghi nhận hiển thị (Impression) cho các gợi ý hàng đầu
+      if (ranked && ranked.length > 0) {
+        ranked.slice(0, 4).forEach((item, idx) => {
+          eventTracker.trackImpression(item.book, idx + 1, currentUser?.id, modelType, query);
+        });
+      }
     }, 120);
   };
 

@@ -5,6 +5,7 @@ import {
   UserInteractionRecord,
 } from '../data/booksDataset';
 import { pickPalette, inferStyleAndGoals } from './googleBooks';
+import { UserPreferenceSummary } from '../types/events';
 
 export type RecommendationModelType =
   | 'hybrid-ensemble'
@@ -75,6 +76,7 @@ export interface ModelScoreBreakdown {
   bm25Normalized: number; // 0..1
   collaborativeKnn: number; // 0..1
   ruleScore: number; // 0..1
+  personalizationScore?: number; // 0..1 (điểm khớp sở thích hành vi cá nhân)
   hybridScore: number; // 0..100
   matchedTerms: string[];
 }
@@ -502,7 +504,58 @@ export class BookRecommendationEngine {
   }
 
   /**
-   * Chạy mô hình được chọn để xếp hạng toàn bộ sách
+   * Thuật toán đa dạng hóa danh mục Maximal Marginal Relevance (MMR)
+   * Cân bằng giữa Điểm phù hợp (Relevance) và Độ đa dạng tác giả/thể loại (Diversity)
+   */
+  private applyDiversityMMR<T extends { book: Book; score: number }>(
+    items: T[],
+    lambda = 0.75,
+    limit = 20
+  ): T[] {
+    if (items.length <= 2) return items;
+    const selected: T[] = [];
+    const remaining = [...items];
+
+    // Hàm đo độ tương đồng giữa 2 cuốn sách (tác giả + thể loại + style)
+    const computeBookSimilarity = (b1: Book, b2: Book): number => {
+      let sim = 0;
+      if (b1.author.toLowerCase() === b2.author.toLowerCase()) sim += 0.50;
+      if (b1.genre.toLowerCase() === b2.genre.toLowerCase()) sim += 0.30;
+      if (b1.style === b2.style) sim += 0.20;
+      return sim;
+    };
+
+    // Chọn phần tử điểm cao nhất đầu tiên
+    selected.push(remaining.shift()!);
+
+    while (remaining.length > 0 && selected.length < limit) {
+      let bestIdx = 0;
+      let bestMMRScore = -Infinity;
+
+      for (let i = 0; i < remaining.length; i++) {
+        const candidate = remaining[i];
+        const relevance = candidate.score / 100;
+        let maxSim = 0;
+        for (const s of selected) {
+          const sim = computeBookSimilarity(candidate.book, s.book);
+          if (sim > maxSim) maxSim = sim;
+        }
+
+        const mmrScore = lambda * relevance - (1 - lambda) * maxSim;
+        if (mmrScore > bestMMRScore) {
+          bestMMRScore = mmrScore;
+          bestIdx = i;
+        }
+      }
+
+      selected.push(remaining.splice(bestIdx, 1)[0]);
+    }
+
+    return [...selected, ...remaining];
+  }
+
+  /**
+   * Chạy mô hình được chọn để xếp hạng toàn bộ sách kèm Tái xếp hạng cá nhân hóa & Đa dạng MMR
    */
   public rankBooks(
     criteria: {
@@ -511,6 +564,9 @@ export class BookRecommendationEngine {
       preferredLength?: 'all' | 'short' | 'medium' | 'long';
       style?: BookStyle | 'all';
       favoriteBookIds?: string[];
+      userPreference?: UserPreferenceSummary;
+      enableDiversityMMR?: boolean;
+      mmrLambda?: number;
     },
     modelType: RecommendationModelType = 'hybrid-ensemble'
   ): {
@@ -566,11 +622,61 @@ export class BookRecommendationEngine {
       const ruleRes = this.computeRuleScore(doc, criteria);
       const ruleScore = Number(ruleRes.score.toFixed(4));
 
-      const hybridRaw =
-        0.35 * tfidfCosine +
-        0.30 * bm25Normalized +
-        0.20 * collaborativeKnn +
-        0.15 * ruleScore;
+      // TÍNH ĐIỂM CÁ NHÂN HÓA DỰA TRÊN HỒ SƠ HỌC MÁY (TASK-03)
+      let persPoints = 0;
+      const persReasons: string[] = [];
+      if (criteria.userPreference) {
+        const pref = criteria.userPreference;
+        const b = doc.book;
+
+        // 1. Phạt nặng sách người dùng từng bấm bỏ qua (Dismissed)
+        if (pref.recentlyDismissedBookIds?.includes(b.id)) {
+          persPoints -= 0.65;
+        }
+
+        // 2. Tăng điểm theo Thể loại yêu thích (Category Affinity)
+        const bookGenre = (b.genre || '').toLowerCase();
+        for (const [cat, weight] of Object.entries(pref.categoryAffinity || {})) {
+          if (
+            bookGenre.includes(cat.toLowerCase()) ||
+            (b.readingGoals || []).some((g) => g.toLowerCase().includes(cat.toLowerCase()))
+          ) {
+            persPoints += weight * 0.40;
+            persReasons.push(`Gu thể loại [${cat}] (+${Math.round(weight * 40)}%)`);
+            break;
+          }
+        }
+
+        // 3. Tăng điểm theo Tác giả yêu thích (Author Affinity)
+        const authorW = pref.authorAffinity?.[b.author];
+        if (authorW) {
+          persPoints += authorW * 0.35;
+          persReasons.push(`Tác giả yêu thích: ${b.author}`);
+        }
+
+        // 4. Khớp từ khóa quan tâm
+        let kwHits = 0;
+        for (const [kw, kwW] of Object.entries(pref.keywordWeights || {})) {
+          if (doc.termFreq.has(kw)) {
+            persPoints += kwW * 0.15;
+            kwHits++;
+            if (kwHits >= 2) break;
+          }
+        }
+      }
+      const personalizationScore = Number(Math.max(0, Math.min(1, persPoints)).toFixed(4));
+
+      // CÔNG THỨC HYBRID ENSEMBLE KẾT HỢP CÁ NHÂN HÓA
+      const hybridRaw = criteria.userPreference
+        ? 0.28 * tfidfCosine +
+          0.24 * bm25Normalized +
+          0.18 * collaborativeKnn +
+          0.10 * ruleScore +
+          0.20 * personalizationScore
+        : 0.35 * tfidfCosine +
+          0.30 * bm25Normalized +
+          0.20 * collaborativeKnn +
+          0.15 * ruleScore;
 
       let activeScore01 = hybridRaw;
       if (modelType === 'tfidf-cosine') {
@@ -585,7 +691,7 @@ export class BookRecommendationEngine {
 
       const finalScore100 = Math.round(Math.min(99, Math.max(12, activeScore01 * 100)));
 
-      const reasons = [...ruleRes.reasons];
+      const reasons = [...persReasons, ...ruleRes.reasons];
       if (tfidfCosine >= 0.45) {
         reasons.push(`Độ tương đồng Cosine cao (${Math.round(tfidfCosine * 100)}%)`);
       }
@@ -608,6 +714,7 @@ export class BookRecommendationEngine {
           bm25Normalized,
           collaborativeKnn,
           ruleScore,
+          personalizationScore,
           hybridScore: Math.round(hybridRaw * 100),
           matchedTerms: tfidfRes.matchedTerms,
         },
@@ -617,7 +724,7 @@ export class BookRecommendationEngine {
     const filtered = ranked
       .filter((item) => {
         if (!hasFilter) return true;
-        // Nếu người dùng chọn фильтр cứng về độ dài hoặc style
+        // Nếu người dùng chọn bộ lọc cứng về độ dài hoặc style
         if (criteria.preferredLength && criteria.preferredLength !== 'all') {
           const p = item.book.pages;
           if (criteria.preferredLength === 'short' && p > 220) return false;
@@ -631,9 +738,16 @@ export class BookRecommendationEngine {
       })
       .sort((a, b) => b.score - a.score || (b.book.rating || 0) - (a.book.rating || 0));
 
+    // Áp dụng Đa dạng hóa MMR (Maximal Marginal Relevance) để tránh trùng lặp tác giả/thể loại
+    const shouldApplyMMR = criteria.enableDiversityMMR !== false;
+    const finalCandidates = filtered.length > 0 ? filtered : ranked.sort((a, b) => b.score - a.score).slice(0, 8);
+    const diverseResults = shouldApplyMMR && finalCandidates.length > 3
+      ? this.applyDiversityMMR(finalCandidates, criteria.mmrLambda ?? 0.75, 20)
+      : finalCandidates;
+
     const t1 = performance.now();
     return {
-      results: filtered.length > 0 ? filtered : ranked.sort((a, b) => b.score - a.score).slice(0, 8),
+      results: diverseResults,
       executionTimeMs: Number(Math.max(0.4, t1 - t0).toFixed(2)),
     };
   }
