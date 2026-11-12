@@ -23,6 +23,7 @@ import { FavoritesModal } from './views/FavoritesModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
+import { eventTracker } from './services/eventTracker';
 
 function MainApp() {
   const [currentRoute, setCurrentRoute] = useState<string>('home');
@@ -31,7 +32,7 @@ function MainApp() {
   const lastFetchRef = useRef(0);
   const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
 
-  const { favorites, isFavorite, toggleFavorite } = useAuth();
+  const { currentUser, favorites, isFavorite, toggleFavorite } = useAuth();
 
   const CACHE_KEY = 'websach-google-books-live-v2';
   const readCache = (): { t: number; books: Book[] } | null => {
@@ -151,6 +152,7 @@ function MainApp() {
     }
     setSelectedBook(book);
     setCurrentRoute('detail');
+    eventTracker.trackBookOpen(book, 'recommendation', currentUser?.id);
     window.location.hash = `detail-${encodeURIComponent(book.id)}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -175,6 +177,7 @@ function MainApp() {
   const handleQuickSearch = (query: string) => {
     setQuickQuery(query);
     setSelectedGoal(null);
+    eventTracker.trackSearch(query, currentUser?.id);
     navigateTo('advisor');
   };
 
