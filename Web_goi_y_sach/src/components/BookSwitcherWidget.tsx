@@ -116,13 +116,21 @@ export const BookSwitcherWidget: React.FC<BookSwitcherWidgetProps> = ({
               }}
             >
               {showImage ? (
-                <img
-                  src={book.coverUrl}
-                  alt={book.title}
-                  loading="lazy"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  onError={() => setImgError(true)}
-                />
+                <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-slate-900/5">
+                  <img
+                    src={book.coverUrl}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 w-full h-full object-cover blur-md opacity-30 scale-110 pointer-events-none"
+                  />
+                  <img
+                    src={book.coverUrl}
+                    alt={book.title}
+                    loading="lazy"
+                    className="relative max-w-full max-h-full object-contain p-0.5 z-10 drop-shadow-xs transition-transform duration-300 group-hover:scale-105"
+                    onError={() => setImgError(true)}
+                  />
+                </div>
               ) : (
                 <div className="absolute inset-0 flex flex-col justify-between p-4">
                   <div

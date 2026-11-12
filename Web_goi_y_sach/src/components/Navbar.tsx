@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { BookOpen, Compass, Library, Globe, Sparkles, Menu, X, ArrowUpRight, Info } from 'lucide-react';
+import { BookOpen, Compass, Library, Globe, Sparkles, Menu, X, ArrowUpRight, Info, Bookmark } from 'lucide-react';
 
 interface NavbarProps {
   currentRoute: string;
   onNavigate: (route: string) => void;
   onOpenGoalFinder?: () => void;
+  favoritesCount?: number;
+  onOpenFavorites?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentRoute,
   onNavigate,
+  favoritesCount = 0,
+  onOpenFavorites,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -82,8 +86,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          {/* CTA Quick Action Button */}
+          {/* CTA & Actions */}
           <div className="hidden sm:flex items-center gap-3">
+            {onOpenFavorites && (
+              <button
+                type="button"
+                onClick={onOpenFavorites}
+                className="px-3.5 py-2 min-h-[40px] rounded-xl border border-slate-200 bg-white hover:border-pink-300 hover:bg-pink-50/50 text-slate-700 hover:text-pink-600 text-xs font-semibold shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                aria-label="Xem sách yêu thích"
+              >
+                <Bookmark className="w-4 h-4 text-pink-500 fill-pink-500" />
+                <span>Yêu thích</span>
+                {favoritesCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-pink-100 text-pink-700 font-bold text-[10px]">
+                    {favoritesCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => handleNavClick('advisor')}
               className="px-4 py-2 min-h-[40px] rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer hover:shadow-md active:scale-98"
@@ -129,6 +150,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               );
             })}
+
+            {onOpenFavorites && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenFavorites();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-3 py-3 min-h-[44px] rounded-xl text-sm font-medium text-pink-600 hover:bg-pink-50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <Bookmark className="w-5 h-5 fill-pink-600 text-pink-600" />
+                  <span>Sách Yêu Thích</span>
+                </div>
+                {favoritesCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-bold text-xs">
+                    {favoritesCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -14,7 +14,7 @@ interface BookCardProps {
   onRevealComplete?: () => void;
 }
 
-export const BookCard: React.FC<BookCardProps> = ({
+export const BookCardComponent: React.FC<BookCardProps> = ({
   book,
   onSelect,
   onFilterByAttribute,
@@ -109,13 +109,23 @@ export const BookCard: React.FC<BookCardProps> = ({
                 }}
               >
                 {book.coverUrl && !imgError ? (
-                  <img
-                    src={book.coverUrl}
-                    alt={book.title}
-                    loading="lazy"
-                    className="absolute inset-0 w-full h-full object-cover"
-                    onError={() => setImgError(true)}
-                  />
+                  <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-slate-900/5">
+                    {/* Lớp nền mờ nghệ thuật chống khoảng trống thô */}
+                    <img
+                      src={book.coverUrl}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-md opacity-30 scale-110 pointer-events-none"
+                    />
+                    {/* Bìa sách hiển thị trọn vẹn 100%, sắc nét và không bị cắt xén */}
+                    <img
+                      src={book.coverUrl}
+                      alt={book.title}
+                      loading="lazy"
+                      className="relative max-w-full max-h-full object-contain z-10 drop-shadow-xs"
+                      onError={() => setImgError(true)}
+                    />
+                  </div>
                 ) : (
                   <>
                     {/* Publisher & Year on Cover */}
@@ -257,3 +267,5 @@ export const BookCard: React.FC<BookCardProps> = ({
     </div>
   );
 };
+
+export const BookCard = React.memo(BookCardComponent);

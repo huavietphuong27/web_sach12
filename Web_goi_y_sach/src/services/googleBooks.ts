@@ -1,6 +1,5 @@
 import { Book, BookStyle } from '../types/book';
 import { translateCategory } from '../utils/categories';
-import { FALLBACK_BOOKS } from '../data/content';
 
 // Google Books API: dùng key trong .env (VITE_GOOGLE_BOOKS_API_KEY).
 const API_KEY: string = (import.meta.env.VITE_GOOGLE_BOOKS_API_KEY || '').trim();
@@ -31,7 +30,14 @@ export interface GoogleVolume {
     pageCount?: number;
     categories?: string[];
     language?: string;
-    imageLinks?: { thumbnail?: string; smallThumbnail?: string };
+    imageLinks?: {
+      smallThumbnail?: string;
+      thumbnail?: string;
+      small?: string;
+      medium?: string;
+      large?: string;
+      extraLarge?: string;
+    };
     averageRating?: number;
     ratingsCount?: number;
     industryIdentifiers?: { type: string; identifier: string }[];
@@ -47,7 +53,29 @@ export interface GoogleBooksResponse {
 }
 
 /**
- * Gọi Google Books API có cơ chế tự phục hồi:
+ * Type guard & runtime validator phòng thủ: kiểm tra tính hợp lệ của Volume từ Google Books API
+ */
+export function isValidGoogleVolume(item: unknown): item is GoogleVolume {
+  if (typeof item !== 'object' || item === null) return false;
+  const candidate = item as Record<string, unknown>;
+  return typeof candidate.id === 'string' && candidate.id.length > 0;
+}
+
+/**
+ * Làm sạch và chuẩn hóa an toàn phản hồi thô từ Google Books API
+ */
+export function sanitizeGoogleBooksResponse(data: unknown): GoogleBooksResponse {
+  if (typeof data !== 'object' || data === null) {
+    return { totalItems: 0, items: [] };
+  }
+  const raw = data as Record<string, unknown>;
+  const totalItems = typeof raw.totalItems === 'number' ? raw.totalItems : 0;
+  const items = Array.isArray(raw.items) ? raw.items.filter(isValidGoogleVolume) : [];
+  return { totalItems, items };
+}
+
+/**
+ * Gọi Google Books API có cơ chế tự phục hồi và bảo vệ kiểu dữ liệu runtime:
  * 1. Thử gọi kèm API_KEY nếu có.
  * 2. Nếu key bị lỗi 400 (sai key), 401, 403 (chặn quyền/quota) -> Tự động gọi lại công khai (không kèm key).
  * 3. Hỗ trợ timeout linh hoạt (mặc định 10 giây).
@@ -64,7 +92,8 @@ async function fetchGoogleBooksApi(
       const qsWithKey = new URLSearchParams({ ...queryObj, key: API_KEY }).toString();
       const res = await fetch(`${BASE_URL}?${qsWithKey}`, { signal });
       if (res.ok) {
-        return (await res.json()) as GoogleBooksResponse;
+        const rawJson: unknown = await res.json();
+        return sanitizeGoogleBooksResponse(rawJson);
       }
       // Nếu lỗi do key (400, 401, 403, 429) -> Bỏ qua và chuyển sang gọi công khai
       console.warn(`[GoogleBooks] Key trả về mã lỗi ${res.status}, tự động chuyển sang chế độ công khai.`);
@@ -78,7 +107,8 @@ async function fetchGoogleBooksApi(
   const qsNoKey = new URLSearchParams(queryObj).toString();
   const resNoKey = await fetch(`${BASE_URL}?${qsNoKey}`, { signal });
   if (resNoKey.ok) {
-    const data = (await resNoKey.json()) as GoogleBooksResponse;
+    const rawJson: unknown = await resNoKey.json();
+    const data = sanitizeGoogleBooksResponse(rawJson);
     if (data.items && data.items.length > 0) return data;
   }
 
@@ -88,14 +118,16 @@ async function fetchGoogleBooksApi(
     const qsBroad = new URLSearchParams(broadQuery).toString();
     const resBroad = await fetch(`${BASE_URL}?${qsBroad}`, { signal });
     if (resBroad.ok) {
-      return (await resBroad.json()) as GoogleBooksResponse;
+      const rawJson: unknown = await resBroad.json();
+      return sanitizeGoogleBooksResponse(rawJson);
     }
   }
 
   if (!resNoKey.ok) {
     throw new Error(`HTTP_${resNoKey.status}`);
   }
-  return (await resNoKey.json()) as GoogleBooksResponse;
+  const rawJson: unknown = await resNoKey.json();
+  return sanitizeGoogleBooksResponse(rawJson);
 }
 
 function pickPalette(seed: string) {
@@ -114,10 +146,40 @@ function extractYear(publishedDate?: string): number {
 
 function toHttpsHighRes(url?: string): string | undefined {
   if (!url) return undefined;
-  return url
-    .replace(/^http:\/\//, 'https://')
-    .replace(/&edge=curl/g, '')
-    .replace(/zoom=1/g, 'zoom=2');
+  let clean = url
+    .replace(/^http:\/\//i, 'https://')
+    .replace(/[?&]edge=curl/gi, '')
+    .replace(/zoom=[0-9]/gi, 'zoom=0');
+
+  // Yêu cầu Google Books CDN trả về ảnh bìa độ phân giải cao (HD), sắc nét rõ ràng
+  if (clean.includes('books.google.com') || clean.includes('googleusercontent.com')) {
+    if (!clean.includes('fife=')) {
+      clean += (clean.includes('?') ? '&' : '?') + 'fife=w800';
+    }
+  }
+  return clean;
+}
+
+function getBestImageCover(
+  imageLinks?: {
+    smallThumbnail?: string;
+    thumbnail?: string;
+    small?: string;
+    medium?: string;
+    large?: string;
+    extraLarge?: string;
+  }
+): string | undefined {
+  if (!imageLinks) return undefined;
+  // Ưu tiên độ phân giải cao nhất: extraLarge -> large -> medium -> small -> thumbnail
+  const bestUrl =
+    imageLinks.extraLarge ||
+    imageLinks.large ||
+    imageLinks.medium ||
+    imageLinks.small ||
+    imageLinks.thumbnail ||
+    imageLinks.smallThumbnail;
+  return toHttpsHighRes(bestUrl);
 }
 
 const VIETNAMESE_SURNAMES = /^(nguyễn|trần|lê|phạm|hoàng|huỳnh|phan|vũ|võ|đặng|bùi|đỗ|hồ|ngô|dương|lý|đinh|trương|đoàn|lương|tô|tạ|châu|thạch|bảo|giản|minh niệm|rosie|nam cao|vũ trọng phụng|tô hoài)/i;
@@ -199,7 +261,7 @@ export function mapVolumeToBook(volume: GoogleVolume): Book {
     coverPalette: palette,
     isFeatured: (vi.averageRating || 0) >= 4.5,
     isbn,
-    coverUrl: toHttpsHighRes(vi.imageLinks?.thumbnail) || toHttpsHighRes(vi.imageLinks?.smallThumbnail),
+    coverUrl: getBestImageCover(vi.imageLinks),
     infoLink: vi.canonicalVolumeLink || vi.infoLink,
     rating: typeof vi.averageRating === 'number' ? vi.averageRating : 4.5,
     ratingsCount: typeof vi.ratingsCount === 'number' ? vi.ratingsCount : 12,
@@ -227,36 +289,31 @@ export async function searchVietnameseBooks(query: string, maxResults = 20): Pro
       return data.items.map(mapVolumeToBook);
     }
   } catch (err) {
-    console.warn('[GoogleBooks] Search error, using fallback matching:', err);
+    console.warn('[GoogleBooks] Search error:', err);
   }
 
-  // Fallback: Tìm kiếm trong kho sách chọn lọc nội bộ nếu Google Books không phản hồi
-  const qNorm = (query || '').toLowerCase().trim();
-  const words = qNorm.split(/\s+/).filter(Boolean);
-  const matched = FALLBACK_BOOKS.filter((b) => {
-    const hay = `${b.title} ${b.author} ${b.genre} ${b.description}`.toLowerCase();
-    return words.some((w) => hay.includes(w));
-  });
-  return matched.length > 0 ? matched : FALLBACK_BOOKS.slice(0, maxResults);
+  // 100% dữ liệu lấy trực tiếp từ Google Books API (không dùng data mẫu có sẵn)
+  return [];
 }
 
 export async function fetchFeaturedVietnameseBooks(maxResults = 16): Promise<Book[]> {
   try {
     const results = await searchVietnameseBooks('phát triển bản thân kinh doanh tâm lý', maxResults);
-    return results.length > 0 ? results : FALLBACK_BOOKS;
+    return results;
   } catch {
-    return FALLBACK_BOOKS;
+    return [];
   }
 }
 
-// Truy vấn chọn lọc các chủ đề thịnh hành (giảm số lượng request đồng thời để tránh lỗi 429 Rate Limit)
+// Truy vấn chọn lọc các chủ đề thịnh hành trên Google Books
 const QUERIES = [
-  'phát triển bản thân kỹ năng',
+  'phát triển bản thân kỹ năng sống',
   'kinh doanh khởi nghiệp tài chính',
-  'tâm lý học chữa lành',
+  'tâm lý học chữa lành cảm xúc',
   'trí tuệ nhân tạo công nghệ',
   'tư duy phản biện triết học',
-  'văn học việt nam chọn lọc',
+  'văn học tiểu thuyết việt nam',
+  'nghệ thuật giao tiếp lãnh đạo',
 ];
 
 export async function fetchManyVietnameseBooks(perQuery = 12): Promise<Book[]> {
@@ -277,15 +334,7 @@ export async function fetchManyVietnameseBooks(perQuery = 12): Promise<Book[]> {
     }
   }
 
-  // Luôn bổ sung sách tuyển chọn từ FALLBACK_BOOKS (nếu chưa trùng tên) để kho sách đa dạng và không bao giờ rỗng
-  for (const fb of FALLBACK_BOOKS) {
-    const k = fb.title.trim().toLowerCase();
-    if (!seen.has(k)) {
-      seen.add(k);
-      out.push(fb);
-    }
-  }
-
+  // 100% sách thật lấy động từ Google Books API
   return out;
 }
 
@@ -324,13 +373,6 @@ export function createCoverPlaceholder(title = 'BookMind AI'): string {
 }
 
 export function advisorBookToBook(ab: AdvisorBook): Book {
-  const existing = FALLBACK_BOOKS.find((b) => b.id === ab.id);
-  if (existing) {
-    return {
-      ...existing,
-      curatorNote: ab.matchReason ? stripHtml(ab.matchReason.replace(/\*\*/g, '')) : existing.curatorNote,
-    };
-  }
   const palette = pickPalette(ab.id + ab.title);
   const category = inferCategory(ab.authors, ab.title, ab.category);
   const { style, readingGoals } = inferStyleAndGoals(ab.category, ab.title, ab.description);
@@ -367,10 +409,7 @@ function mapVolumeToAdvisorBook(volume: GoogleVolume): AdvisorBook {
     authors: vi.authors && vi.authors.length ? vi.authors.join(', ') : 'Nhiều tác giả',
     category: translateCategory(vi.categories && vi.categories.length ? vi.categories[0] : undefined),
     rating: typeof vi.averageRating === 'number' ? vi.averageRating : 4.6,
-    coverImage:
-      toHttpsHighRes(vi.imageLinks?.thumbnail) ||
-      toHttpsHighRes(vi.imageLinks?.smallThumbnail) ||
-      createCoverPlaceholder(title),
+    coverImage: getBestImageCover(vi.imageLinks) || createCoverPlaceholder(title),
     description: stripHtml(rawDesc) || 'Chưa có mô tả chi tiết cho cuốn sách này.',
     previewLink: vi.canonicalVolumeLink || vi.infoLink || `https://books.google.com/books?id=${volume.id}`,
     publishedDate: vi.publishedDate ? String(vi.publishedDate).slice(0, 4) : '',
@@ -378,44 +417,8 @@ function mapVolumeToAdvisorBook(volume: GoogleVolume): AdvisorBook {
   };
 }
 
-function loadAdvisorFallback(searchQuery = ''): AdvisorBook[] {
-  const q = searchQuery.toLowerCase().trim();
-  const mapped: AdvisorBook[] = FALLBACK_BOOKS.map((b) => ({
-    id: b.id,
-    title: b.title,
-    authors: b.author,
-    category: b.genre,
-    rating: b.rating || 4.8,
-    coverImage: b.coverUrl || createCoverPlaceholder(b.title),
-    description: b.description,
-    previewLink:
-      b.infoLink || `https://www.google.com/search?tbm=bks&q=${encodeURIComponent(b.title)}`,
-    publishedDate: String(b.publishYear),
-    pageCount: b.pages,
-    matchReason: b.curatorNote,
-  }));
-
-  if (!q) return mapped.slice(0, 6);
-  const words = q.split(/\s+/).filter((w) => w.length > 1);
-  return mapped
-    .map((b) => {
-      const hay = `${b.title} ${b.authors} ${b.category} ${b.description}`.toLowerCase();
-      let hits = 0;
-      for (const w of words) {
-        if (hay.includes(w)) hits++;
-      }
-      return { b, hits };
-    })
-    .sort((a, b) => b.hits - a.hits)
-    .map((s) => s.b)
-    .slice(0, 6);
-}
-
 export async function fetchBookById(id: string): Promise<Book | null> {
-  const local = FALLBACK_BOOKS.find((b) => b.id === id);
-  if (local) return local;
-
-  // 1. Thử gọi có key nếu có
+  // 1. Thử gọi trực tiếp từ Google Books API (có key)
   if (API_KEY) {
     try {
       const res = await fetch(`${BASE_URL}/${encodeURIComponent(id)}?key=${encodeURIComponent(API_KEY)}`);
@@ -447,7 +450,7 @@ export async function fetchLiveBooks(
   isTrending = false
 ): Promise<FetchBooksResult> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return { books: loadAdvisorFallback(searchQuery), isFallback: false };
+    return { books: [], isFallback: false };
   }
 
   const controller = new AbortController();
@@ -469,12 +472,12 @@ export async function fetchLiveBooks(
       }
     }
     // Nếu API trả về rỗng, lấy từ kho tuyển chọn mà không đánh dấu lỗi
-    return { books: loadAdvisorFallback(searchQuery), isFallback: false };
+    return { books: [], isFallback: false };
   } catch (e: unknown) {
     const err = e as { code?: string; name?: string };
     const errorCode = err?.code || (err?.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK');
     console.warn('[GoogleBooks] fetchLiveBooks falling back:', errorCode);
-    return { books: loadAdvisorFallback(searchQuery), isFallback: false, errorCode };
+    return { books: [], isFallback: false, errorCode };
   } finally {
     clearTimeout(timer);
   }

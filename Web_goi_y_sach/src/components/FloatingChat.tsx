@@ -201,18 +201,26 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
                           className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200 hover:border-indigo-500 transition-colors cursor-pointer group shadow-2xs min-h-[44px]"
                         >
                           <div
-                            className="w-10 h-14 rounded-md shrink-0 overflow-hidden bg-slate-100 shadow-2xs"
+                            className="w-10 h-14 rounded-md shrink-0 overflow-hidden bg-slate-100 shadow-2xs relative flex items-center justify-center"
                           >
                             {b.coverUrl ? (
-                              <img
-                                src={b.coverUrl}
-                                alt={b.title}
-                                loading="lazy"
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
-                                }}
-                              />
+                              <>
+                                <img
+                                  src={b.coverUrl}
+                                  alt=""
+                                  aria-hidden="true"
+                                  className="absolute inset-0 w-full h-full object-cover blur-xs opacity-25 scale-110 pointer-events-none"
+                                />
+                                <img
+                                  src={b.coverUrl}
+                                  alt={b.title}
+                                  loading="lazy"
+                                  className="relative max-w-full max-h-full object-contain p-0.5 z-10"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              </>
                             ) : (
                               <span className="flex items-center justify-center h-full p-1 text-[9px] text-center font-bold text-slate-700">
                                 {b.title.slice(0, 14)}..

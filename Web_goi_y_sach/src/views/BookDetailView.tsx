@@ -3,7 +3,7 @@ import { Book } from '../types/book';
 import { formatReadingTime, getRelatedBooksByAttribute } from '../utils/bookRecommender';
 import { BookRowGrid } from '../components/BookRowGrid';
 import { QuoteHighlighter } from '../components/QuoteHighlighter';
-import { ArrowLeft, BookOpen, Quote, Sparkles, Share2, Check, ExternalLink } from 'lucide-react';
+import { ArrowLeft, BookOpen, Quote, Sparkles, Share2, Check, ExternalLink, Bookmark } from 'lucide-react';
 
 interface BookDetailViewProps {
   book: Book;
@@ -11,6 +11,8 @@ interface BookDetailViewProps {
   onBack: () => void;
   onSelectBook: (book: Book) => void;
   onFilterByAttribute: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (book: Book) => void;
 }
 
 type RelatedFilterMode = 'author' | 'publisher' | 'year' | 'genre';
@@ -21,6 +23,8 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
   onBack,
   onSelectBook,
   onFilterByAttribute,
+  isFavorite = false,
+  onToggleFavorite,
 }) => {
   const [copied, setCopied] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -101,12 +105,22 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
         <div className="lg:col-span-5 max-w-md mx-auto w-full group">
           <div className="relative aspect-[2/3] w-full rounded-2xl overflow-hidden bg-white shadow-md border border-slate-200">
             {book.coverUrl && !imgError ? (
-              <img
-                src={book.coverUrl}
-                alt={`Bìa sách ${book.title}`}
-                className="absolute inset-0 w-full h-full object-cover z-10"
-                onError={() => setImgError(true)}
-              />
+              <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-slate-900/5">
+                {/* Lớp nền mờ nghệ thuật phía sau */}
+                <img
+                  src={book.coverUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover blur-xl opacity-35 scale-110 pointer-events-none"
+                />
+                {/* Bìa sách hiển thị trọn vẹn 100%, không bị xén chữ hay góc cạnh */}
+                <img
+                  src={book.coverUrl}
+                  alt={`Bìa sách ${book.title}`}
+                  className="relative max-w-full max-h-full object-contain p-2 z-10 drop-shadow-md"
+                  onError={() => setImgError(true)}
+                />
+              </div>
             ) : (
               <div
                 className="absolute inset-0 flex flex-col justify-between p-6 sm:p-8"
@@ -324,6 +338,21 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
 
           {/* Action Row */}
           <div className="pt-2 flex flex-wrap items-center gap-3">
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={() => onToggleFavorite(book)}
+                className={`px-5 py-2.5 min-h-[44px] rounded-xl border text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-2xs ${
+                  isFavorite
+                    ? 'border-pink-500 bg-pink-50 text-pink-600'
+                    : 'border-slate-200 bg-white hover:border-pink-300 hover:text-pink-600 text-slate-800'
+                }`}
+              >
+                <Bookmark className={`w-4 h-4 ${isFavorite ? 'fill-current text-pink-600' : 'text-slate-500'}`} />
+                <span>{isFavorite ? 'Đã lưu yêu thích' : 'Lưu vào yêu thích'}</span>
+              </button>
+            )}
+
             <button
               onClick={handleShare}
               className="px-5 py-2.5 min-h-[44px] rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold text-slate-800 transition-colors flex items-center gap-2 cursor-pointer shadow-2xs"

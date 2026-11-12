@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Book, ReadingGoal, QuickFilterTag } from './types/book';
-import { FALLBACK_BOOKS } from './data/content';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { HomeView } from './views/HomeView';
@@ -17,15 +16,19 @@ import {
   fetchManyVietnameseBooks,
 } from './services/googleBooks';
 import { FloatingChat } from './components/FloatingChat';
+import { useFavorites } from './hooks/useFavorites';
+import { FavoritesModal } from './views/FavoritesModal';
 
 export default function App() {
   const [currentRoute, setCurrentRoute] = useState<string>('home');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [liveBooks, setLiveBooks] = useState<Book[]>(FALLBACK_BOOKS);
+  const [liveBooks, setLiveBooks] = useState<Book[]>([]);
   const lastFetchRef = useRef(0);
+  const { favorites, isFavorite, toggleFavorite } = useFavorites();
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
 
   // Cache vào sessionStorage để lần mở sau hiện sách NGAY, không phải chờ API.
-  const CACHE_KEY = 'websach-books-v3';
+  const CACHE_KEY = 'websach-google-books-live-v1';
   const readCache = (): { t: number; books: Book[] } | null => {
     try {
       const raw = sessionStorage.getItem(CACHE_KEY);
@@ -92,7 +95,7 @@ export default function App() {
       } else if (hash.startsWith('book-') || hash.startsWith('detail-')) {
         const prefixLen = hash.startsWith('detail-') ? 7 : 5;
         const bookId = decodeURIComponent(hash.slice(prefixLen));
-        const found = liveBooks.find((b) => b.id === bookId) || FALLBACK_BOOKS.find((b) => b.id === bookId);
+        const found = liveBooks.find((b) => b.id === bookId);
         if (found) {
           setSelectedBook(found);
           setCurrentRoute('detail');
@@ -193,6 +196,8 @@ export default function App() {
           navigateTo(route);
         }}
         onOpenGoalFinder={() => navigateTo('advisor')}
+        favoritesCount={favorites.length}
+        onOpenFavorites={() => setIsFavoritesOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -249,6 +254,8 @@ export default function App() {
             onBack={handleBackFromDetail}
             onSelectBook={handleSelectBook}
             onFilterByAttribute={handleFilterByAttribute}
+            isFavorite={isFavorite(selectedBook.id)}
+            onToggleFavorite={toggleFavorite}
           />
         )}
       </main>
@@ -272,6 +279,17 @@ export default function App() {
           }}
         />
       )}
+      {/* Favorites Modal */}
+      <FavoritesModal
+        isOpen={isFavoritesOpen}
+        onClose={() => setIsFavoritesOpen(false)}
+        favorites={favorites}
+        onRemove={toggleFavorite}
+        onViewDetail={(book) => {
+          handleSelectBook(book);
+          setIsFavoritesOpen(false);
+        }}
+      />
     </div>
   );
 }

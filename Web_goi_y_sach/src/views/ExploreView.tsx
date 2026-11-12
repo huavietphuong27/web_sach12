@@ -201,15 +201,23 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ onSelectBook }) => {
                   </span>
                 </div>
                 {book.coverUrl && (
-                  <img
-                    src={book.coverUrl}
-                    alt={`Bìa sách ${book.title}`}
-                    loading="lazy"
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 z-10"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
+                  <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-slate-900/5 z-10">
+                    <img
+                      src={book.coverUrl}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-sm opacity-25 scale-110 pointer-events-none"
+                    />
+                    <img
+                      src={book.coverUrl}
+                      alt={`Bìa sách ${book.title}`}
+                      loading="lazy"
+                      className="relative max-w-full max-h-full object-contain p-1 z-10 drop-shadow-xs transition-transform duration-300 group-hover:scale-105"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
                 )}
               </button>
 

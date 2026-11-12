@@ -9,16 +9,24 @@ interface BookCardAdvisorProps {
 /** Thẻ sách 6 thành phần: bìa 2:3 · badge thể loại+⭐ · tiêu đề 2 dòng · tác giả · hộp matchReason · nút. */
 export const BookCardAdvisor: React.FC<BookCardAdvisorProps> = ({ book, onOpen }) => (
   <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-indigo-200 group">
-    {/* 1. Ảnh bìa */}
+    {/* 1. Ảnh bìa hiển thị trọn vẹn 100% không bị cắt góc */}
     <div
       onClick={() => onOpen(book)}
-      className="relative aspect-[2/3] w-full overflow-hidden bg-slate-100 cursor-pointer"
+      className="relative aspect-[2/3] w-full overflow-hidden bg-slate-900/5 flex items-center justify-center cursor-pointer group/card"
     >
+      {/* Nền mờ đồng điệu phía sau */}
+      <img
+        src={book.coverImage}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full object-cover blur-md opacity-25 scale-110 pointer-events-none"
+      />
+      {/* Bìa sách nguyên vẹn đầy đủ chi tiết */}
       <img
         src={book.coverImage}
         alt={book.title}
         loading="lazy"
-        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        className="relative max-w-full max-h-full object-contain p-1 z-10 drop-shadow-xs transition-transform duration-300 group-hover/card:scale-[1.02]"
         onError={(e) => {
           const target = e.currentTarget as HTMLImageElement;
           const fallback = createCoverPlaceholder(book.title);
@@ -26,7 +34,7 @@ export const BookCardAdvisor: React.FC<BookCardAdvisorProps> = ({ book, onOpen }
         }}
       />
       {/* 2. Badge thể loại + đánh giá */}
-      <span className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-xs text-white text-[11px] font-medium px-2 py-1 rounded-md shadow-xs">
+      <span className="absolute top-2 left-2 z-20 bg-slate-900/85 backdrop-blur-xs text-white text-[11px] font-medium px-2 py-1 rounded-md shadow-xs">
         {book.category} • ⭐ {book.rating ? book.rating.toFixed(1) : '—'}
       </span>
     </div>

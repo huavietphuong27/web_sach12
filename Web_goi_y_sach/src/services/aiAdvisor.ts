@@ -83,25 +83,62 @@ Trước khi đưa ra kết quả, hãy ngầm tách từng từ khóa, sự vi�
 ### 3. [Tên Sách] – [Tên Tác Giả]
 *(Trình bày đầy đủ các mục giống hệt cuốn 1)*`;
 
-export const FRIEND_PERSONA_PROMPT = EXACT_BOOK_RECOMMENDER_PROMPT;
+/**
+ * Tiện ích chờ thời gian mili-giây
+ */
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function callGemini(prompt: string, expectJson = true): Promise<string> {
+/**
+ * Gọi Google Gemini 2.0 Flash với cơ chế Exponential Backoff & Jitter:
+ * - Tự động thử lại tối đa 3 lần khi gặp HTTP 429 (Rate Limit) hoặc HTTP 503 (Overloaded)
+ * - Tăng thời gian chờ theo lũy tiến: 800ms -> 1600ms -> 3200ms (+ random jitter)
+ */
+async function callGemini(prompt: string, expectJson = true, maxRetries = 2): Promise<string> {
   if (!KEY) throw new Error('NO_KEY');
   const generationConfig: Record<string, unknown> = { temperature: 0.6 };
   if (expectJson) {
     generationConfig.responseMimeType = 'application/json';
   }
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig,
-    }),
-  });
-  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
-  const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  let attempt = 0;
+  while (attempt <= maxRetries) {
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      }
+
+      // Xử lý mã lỗi Rate Limit 429 hoặc Server 500/503: thử lại với backoff
+      if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
+        attempt++;
+        const jitter = Math.floor(Math.random() * 300);
+        const delayMs = Math.pow(2, attempt) * 600 + jitter;
+        console.warn(`[GeminiAdvisor] Gặp mã HTTP ${res.status}, đang thử lại lần ${attempt}/${maxRetries} sau ${delayMs}ms...`);
+        await wait(delayMs);
+        continue;
+      }
+
+      throw new Error(`Gemini HTTP ${res.status}`);
+    } catch (err: unknown) {
+      if (attempt < maxRetries && (err as Error)?.message?.includes('fetch')) {
+        attempt++;
+        await wait(Math.pow(2, attempt) * 500);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error('Gemini API Max Retries Exceeded');
 }
 
 function parseJson(raw: string): Record<string, unknown> | null {
@@ -128,7 +165,7 @@ async function decideSearch(userText: string): Promise<{
   followUpQuestion: string;
   followUpSuggestions: string[];
 }> {
-  const prompt = `${FRIEND_PERSONA_PROMPT}
+  const prompt = `${EXACT_BOOK_RECOMMENDER_PROMPT}
 
 Người dùng nói: "${userText}"
 
@@ -188,7 +225,7 @@ async function composeTurn(
     description: b.description.slice(0, 220),
   }));
 
-  const prompt = `${FRIEND_PERSONA_PROMPT}
+  const prompt = `${EXACT_BOOK_RECOMMENDER_PROMPT}
 
 Người dùng nói: "${userText}".
 Ghi chú phân tích ban đầu: "${plan.analysis || '(không có)'}".
