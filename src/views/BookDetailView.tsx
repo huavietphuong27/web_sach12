@@ -1,7 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Book } from '../types/book';
 import { formatReadingTime, getRelatedBooksByAttribute } from '../utils/bookRecommender';
-import { BookRecommendationEngine } from '../services/recommendationModels';
 import { BookRowGrid } from '../components/BookRowGrid';
 import { QuoteHighlighter } from '../components/QuoteHighlighter';
 import {
@@ -13,25 +12,33 @@ import {
   Check,
   ExternalLink,
   Bookmark,
-  Cpu,
   Star,
   Edit3,
-  Trash2,
   Lock,
+  Building2,
+  Calendar,
+  Clock,
+  Hash,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+  extractCleanAuthor,
+  fetchBooksByAttribute,
+} from '../services/googleBooks';
 
 interface BookDetailViewProps {
   book: Book;
   allBooks: Book[];
   onBack: () => void;
   onSelectBook: (book: Book) => void;
-  onFilterByAttribute: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (book: Book) => void;
+  onAppendBooks?: (books: Book[]) => number;
 }
 
-type RelatedFilterMode = 'ai-model' | 'author' | 'publisher' | 'year' | 'genre';
+type RelatedFilterMode = 'genre' | 'author' | 'publisher' | 'year';
 
 export const BookDetailView: React.FC<BookDetailViewProps> = ({
   book,
@@ -41,11 +48,27 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
   onFilterByAttribute,
   isFavorite = false,
   onToggleFavorite,
+  onAppendBooks,
 }) => {
   const [copied, setCopied] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [relatedMode, setRelatedMode] = useState<RelatedFilterMode>('ai-model');
+  const [relatedMode, setRelatedMode] = useState<RelatedFilterMode>('genre');
+  const [tabApiBooks, setTabApiBooks] = useState<Record<RelatedFilterMode, Book[]>>({
+    genre: [],
+    author: [],
+    publisher: [],
+    year: [],
+  });
+  const [isFetchingTab, setIsFetchingTab] = useState<Record<RelatedFilterMode, boolean>>({
+    genre: false,
+    author: false,
+    publisher: false,
+    year: false,
+  });
+  const [tabFetchedDone, setTabFetchedDone] = useState<Record<string, boolean>>({});
   const relatedSectionRef = useRef<HTMLElement>(null);
+
+  const cleanAuthorName = useMemo(() => extractCleanAuthor(book.author), [book.author]);
 
   const {
     currentUser,
@@ -93,12 +116,6 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
     setTimeout(() => setNoteSavedAlert(false), 2000);
   };
 
-  // Chạy mô hình TF-IDF Cosine + Item-Item Collaborative KNN tìm sách tương đồng
-  const aiSimilarItems = useMemo(() => {
-    const engine = new BookRecommendationEngine(allBooks);
-    return engine.findSimilarBooks(book, 4);
-  }, [allBooks, book]);
-
   // Related collections
   const booksBySameAuthor = getRelatedBooksByAttribute(allBooks, {
     type: 'author',
@@ -122,20 +139,113 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
     .filter((b) => b.id !== book.id && (b.category === book.category || b.style === book.style))
     .slice(0, 4);
 
+  // Tự động tìm thêm sách từ Google Books theo bất kỳ tiêu chí nào (Chủ đề, Tác giả, NXB, Năm)
+  useEffect(() => {
+    let isMounted = true;
+    let targetType: 'author' | 'publisher' | 'year' | 'genre' = 'genre';
+    let targetVal: string | number = '';
+    let currentCount = 0;
+
+    if (relatedMode === 'author') {
+      targetType = 'author';
+      targetVal = cleanAuthorName;
+      currentCount = booksBySameAuthor.length;
+    } else if (relatedMode === 'publisher') {
+      targetType = 'publisher';
+      targetVal = book.publisher;
+      currentCount = booksBySamePublisher.length;
+    } else if (relatedMode === 'year') {
+      targetType = 'year';
+      targetVal = book.publishYear;
+      currentCount = booksBySameYear.length;
+    } else if (relatedMode === 'genre') {
+      targetType = 'genre';
+      targetVal = book.genre || book.category;
+      currentCount = booksBySameEmotion.length;
+    }
+
+    const cacheKey = `${book.id}:${relatedMode}:${targetVal}`;
+    if (!targetVal || tabFetchedDone[cacheKey] || isFetchingTab[relatedMode]) return;
+
+    if (currentCount <= 2) {
+      setIsFetchingTab((prev) => ({ ...prev, [relatedMode]: true }));
+      fetchBooksByAttribute(targetType, targetVal, 16)
+        .then((fetched) => {
+          if (!isMounted) return;
+          const otherBooks = fetched.filter((b) => b.id !== book.id);
+          if (otherBooks.length > 0) {
+            setTabApiBooks((prev) => ({
+              ...prev,
+              [relatedMode]: otherBooks,
+            }));
+            if (onAppendBooks) {
+              onAppendBooks(otherBooks);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn(`[BookDetailView] Lỗi tải sách cho tab ${relatedMode}:`, err);
+        })
+        .finally(() => {
+          if (isMounted) {
+            setIsFetchingTab((prev) => ({ ...prev, [relatedMode]: false }));
+            setTabFetchedDone((prev) => ({ ...prev, [cacheKey]: true }));
+          }
+        });
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    relatedMode,
+    book.id,
+    cleanAuthorName,
+    book.publisher,
+    book.publishYear,
+    book.genre,
+    book.category,
+    booksBySameAuthor.length,
+    booksBySamePublisher.length,
+    booksBySameYear.length,
+    booksBySameEmotion.length,
+    tabFetchedDone,
+    isFetchingTab,
+    onAppendBooks,
+  ]);
+
   // Active list of books based on relatedMode
   const activeRelatedBooks = (() => {
     switch (relatedMode) {
-      case 'ai-model':
-        return aiSimilarItems.map((i) => i.book);
-      case 'author':
-        return booksBySameAuthor.length > 0 ? booksBySameAuthor : booksBySameEmotion;
-      case 'publisher':
-        return booksBySamePublisher.length > 0 ? booksBySamePublisher : booksBySameEmotion;
-      case 'year':
-        return booksBySameYear.length > 0 ? booksBySameYear : booksBySameEmotion;
+      case 'author': {
+        const combined = [
+          ...booksBySameAuthor,
+          ...(tabApiBooks.author || []).filter((ab) => !booksBySameAuthor.some((b) => b.id === ab.id)),
+        ];
+        return combined.length > 0 ? combined : booksBySameEmotion;
+      }
+      case 'publisher': {
+        const combined = [
+          ...booksBySamePublisher,
+          ...(tabApiBooks.publisher || []).filter((pb) => !booksBySamePublisher.some((b) => b.id === pb.id)),
+        ];
+        return combined.length > 0 ? combined : booksBySameEmotion;
+      }
+      case 'year': {
+        const combined = [
+          ...booksBySameYear,
+          ...(tabApiBooks.year || []).filter((yb) => !booksBySameYear.some((b) => b.id === yb.id)),
+        ];
+        return combined.length > 0 ? combined : booksBySameEmotion;
+      }
       case 'genre':
-      default:
-        return booksBySameEmotion;
+      default: {
+        const combined = [
+          ...booksBySameEmotion,
+          ...(tabApiBooks.genre || []).filter((gb) => !booksBySameEmotion.some((b) => b.id === gb.id)),
+        ];
+        return combined;
+      }
     }
   })();
 
@@ -335,15 +445,16 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
 
           {/* Suitable Reading Goals */}
           {book.readingGoals && book.readingGoals.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Mục tiêu đọc phù hợp
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-accent" />
+                <span>Mục tiêu đọc phù hợp</span>
               </h4>
               <div className="flex flex-wrap gap-2">
                 {book.readingGoals.map((goal, idx) => (
                   <span
                     key={idx}
-                    className="text-xs px-3.5 py-2 min-h-[44px] inline-flex items-center rounded-lg bg-white border border-slate-200 text-slate-800 font-medium shadow-2xs"
+                    className="text-xs px-3.5 py-2 rounded-xl bg-surface border border-border text-ink font-medium shadow-2xs hover:border-accent/40 transition-colors"
                   >
                     {goal}
                   </span>
@@ -352,53 +463,65 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
             </div>
           )}
 
-          {/* Publication Facts with hairline dividers */}
-          <div className="border-t border-slate-200 pt-6">
-            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          {/* Publication Facts - Balanced Grid Cards */}
+          <div className="border-t border-border pt-6">
+            <h4 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-3.5">
               Thông tin ấn bản
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-sm py-4 border-y border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {/* Publisher Fact Item */}
-              <div>
-                <span className="text-xs text-slate-500 block">Nhà xuất bản</span>
+              <div className="p-4 rounded-2xl bg-surface-subtle border border-border flex flex-col justify-between gap-2 transition-all hover:border-accent/30">
+                <span className="text-xs text-ink-muted font-medium flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>Nhà xuất bản</span>
+                </span>
                 <button
                   type="button"
                   onClick={() => handleQuickAttributeClick('publisher', book.publisher)}
-                  className="mt-1 font-semibold text-slate-900 hover:text-indigo-600 hover:underline text-left cursor-pointer transition-colors group flex items-center gap-1.5 min-h-[44px]"
+                  className="font-semibold text-ink hover:text-accent hover:underline text-left cursor-pointer transition-colors group flex items-center justify-between gap-2"
                   title={`Xem các sách của ${book.publisher}`}
                 >
-                  <span className="truncate">{book.publisher}</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-indigo-600 shrink-0 opacity-70 group-hover:opacity-100" />
+                  <span className="truncate text-sm">{book.publisher}</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-ink-muted shrink-0 opacity-60 group-hover:opacity-100 group-hover:text-accent" />
                 </button>
               </div>
 
               {/* Publish Year Fact Item */}
-              <div>
-                <span className="text-xs text-slate-500 block">Năm phát hành</span>
+              <div className="p-4 rounded-2xl bg-surface-subtle border border-border flex flex-col justify-between gap-2 transition-all hover:border-accent/30">
+                <span className="text-xs text-ink-muted font-medium flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>Năm phát hành</span>
+                </span>
                 <button
                   type="button"
                   onClick={() => handleQuickAttributeClick('year', book.publishYear)}
-                  className="mt-1 font-semibold text-slate-900 hover:text-indigo-600 hover:underline text-left cursor-pointer transition-colors tabular-nums group flex items-center gap-1.5 min-h-[44px]"
+                  className="font-semibold text-ink hover:text-accent hover:underline text-left cursor-pointer transition-colors tabular-nums group flex items-center justify-between gap-2"
                   title={`Xem các sách năm ${book.publishYear}`}
                 >
-                  <span>{book.publishYear}</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-indigo-600 shrink-0 opacity-70 group-hover:opacity-100" />
+                  <span className="text-sm">{book.publishYear}</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-ink-muted shrink-0 opacity-60 group-hover:opacity-100 group-hover:text-accent" />
                 </button>
               </div>
 
               {/* Pages */}
-              <div>
-                <span className="text-xs text-slate-500 block">Dung lượng</span>
-                <span className="mt-1 flex items-center font-medium text-slate-900 min-h-[44px]">{formatReadingTime(book.pages)}</span>
+              <div className="p-4 rounded-2xl bg-surface-subtle border border-border flex flex-col justify-between gap-2 transition-all">
+                <span className="text-xs text-ink-muted font-medium flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>Dung lượng</span>
+                </span>
+                <span className="font-semibold text-sm text-ink">{formatReadingTime(book.pages)}</span>
               </div>
 
               {/* ISBN */}
-              {book.isbn && (
-                <div>
-                  <span className="text-xs text-slate-500 block">Mã ISBN</span>
-                  <span className="mt-1 flex items-center font-mono text-xs text-slate-900 truncate min-h-[44px]">{book.isbn}</span>
-                </div>
-              )}
+              <div className="p-4 rounded-2xl bg-surface-subtle border border-border flex flex-col justify-between gap-2 transition-all">
+                <span className="text-xs text-ink-muted font-medium flex items-center gap-1.5">
+                  <Hash className="w-3.5 h-3.5 text-accent shrink-0" />
+                  <span>Mã ISBN</span>
+                </span>
+                <span className="font-mono text-xs font-semibold text-ink truncate">
+                  {book.isbn || 'Đang cập nhật'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -567,10 +690,10 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
 
           <button
             onClick={() => {
-              if (relatedMode === 'author') onFilterByAttribute('author', book.author);
+              if (relatedMode === 'author') onFilterByAttribute('author', cleanAuthorName);
               else if (relatedMode === 'publisher') onFilterByAttribute('publisher', book.publisher);
               else if (relatedMode === 'year') onFilterByAttribute('year', book.publishYear);
-              else onFilterByAttribute('author', book.author);
+              else onFilterByAttribute('genre', book.genre || book.category);
             }}
             className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-start md:self-auto min-h-[44px]"
           >
@@ -583,88 +706,76 @@ export const BookDetailView: React.FC<BookDetailViewProps> = ({
         <div className="flex flex-wrap gap-2 pt-2">
           <button
             type="button"
-            onClick={() => setRelatedMode('ai-model')}
-            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border inline-flex items-center gap-1.5 ${
-              relatedMode === 'ai-model'
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-400'
-            }`}
-          >
-            <Cpu className="w-3.5 h-3.5" />
-            <span>Model AI: TF-IDF Cosine + KNN ({aiSimilarItems.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRelatedMode('author')}
-            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-              relatedMode === 'author'
-                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            Cùng tác giả: {book.author} ({booksBySameAuthor.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRelatedMode('publisher')}
-            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-              relatedMode === 'publisher'
-                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            Cùng nhà xuất bản: {book.publisher} ({booksBySamePublisher.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setRelatedMode('year')}
-            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-              relatedMode === 'year'
-                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            Cùng năm phát hành: {book.publishYear} ({booksBySameYear.length})
-          </button>
-
-          <button
-            type="button"
             onClick={() => setRelatedMode('genre')}
-            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border inline-flex items-center gap-1.5 ${
               relatedMode === 'genre'
                 ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
                 : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
             }`}
           >
-            Cùng chủ đề &amp; định hướng ({booksBySameEmotion.length})
+            {isFetchingTab.genre && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
+            <span>
+              Cùng chủ đề &amp; định hướng (
+              {booksBySameEmotion.length +
+                (tabApiBooks.genre || []).filter((gb) => !booksBySameEmotion.some((b) => b.id === gb.id)).length}
+              )
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRelatedMode('author')}
+            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border inline-flex items-center gap-1.5 ${
+              relatedMode === 'author'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            {isFetchingTab.author && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
+            <span>
+              Cùng tác giả: {cleanAuthorName} (
+              {booksBySameAuthor.length +
+                (tabApiBooks.author || []).filter((ab) => !booksBySameAuthor.some((b) => b.id === ab.id)).length}
+              )
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRelatedMode('publisher')}
+            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border inline-flex items-center gap-1.5 ${
+              relatedMode === 'publisher'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            {isFetchingTab.publisher && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
+            <span>
+              Cùng nhà xuất bản: {book.publisher} (
+              {booksBySamePublisher.length +
+                (tabApiBooks.publisher || []).filter((pb) => !booksBySamePublisher.some((b) => b.id === pb.id)).length}
+              )
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRelatedMode('year')}
+            className={`px-4 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer border inline-flex items-center gap-1.5 ${
+              relatedMode === 'year'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            {isFetchingTab.year && <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />}
+            <span>
+              Cùng năm phát hành: {book.publishYear} (
+              {booksBySameYear.length +
+                (tabApiBooks.year || []).filter((yb) => !booksBySameYear.some((b) => b.id === yb.id)).length}
+              )
+            </span>
           </button>
         </div>
-
-        {/* AI Similarity Explanation Badges when in ai-model mode */}
-        {relatedMode === 'ai-model' && aiSimilarItems.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {aiSimilarItems.map((item) => (
-              <div
-                key={`sim-${item.book.id}`}
-                onClick={() => onSelectBook(item.book)}
-                className="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200/80 hover:border-indigo-500 cursor-pointer transition-all"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-[11px] font-bold text-indigo-700 truncate">
-                    {item.book.title}
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] font-extrabold shrink-0">
-                    {item.similarity}% khớp
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 line-clamp-1">{item.reason}</p>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Related Books Grid using BookRowGrid */}
         {activeRelatedBooks.length > 0 ? (

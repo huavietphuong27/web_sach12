@@ -1,15 +1,37 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Book, FilterState, BookCategory, QuickFilterTag } from '../types/book';
 import { filterAndSortBooks } from '../utils/bookRecommender';
 import { BookRowGrid } from '../components/BookRowGrid';
-import { Search, RotateCcw, ChevronLeft, ChevronRight, Library, Tag, X, SlidersHorizontal, BookX } from 'lucide-react';
+import { CustomSelect } from '../components/ui/CustomSelect';
+import { fetchBooksByAttribute } from '../services/googleBooks';
+import { useAuth } from '../context/AuthContext';
+import { eventTracker } from '../services/eventTracker';
+import { saveUserSearchQuery } from '../services/homeRecommendations';
+import {
+  Search,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  Library,
+  Tag,
+  X,
+  SlidersHorizontal,
+  BookX,
+  Loader2,
+  DownloadCloud,
+  User,
+  Building2,
+  Calendar,
+  BookOpen,
+} from 'lucide-react';
 
 interface LibraryViewProps {
   books: Book[];
   onSelectBook: (book: Book) => void;
   activeTagFilter?: QuickFilterTag | null;
-  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
   onClearTagFilter?: () => void;
+  onAppendBooks?: (books: Book[]) => number;
 }
 
 const ITEMS_PER_PAGE = 8;
@@ -20,6 +42,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   activeTagFilter = null,
   onFilterByAttribute,
   onClearTagFilter,
+  onAppendBooks,
 }) => {
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
@@ -32,6 +55,59 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
   const [currentPage, setCurrentPage] = useState(1);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [isFetchingAttribute, setIsFetchingAttribute] = useState(false);
+  const [attributeFetchDone, setAttributeFetchDone] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const { currentUser } = useAuth();
+
+  // Tự động ghi nhận lịch sử tìm kiếm của người dùng sau khi dừng gõ
+  useEffect(() => {
+    const q = filters.searchQuery.trim();
+    if (q.length < 2) return;
+    const timer = setTimeout(() => {
+      eventTracker.trackSearch(q, currentUser?.id);
+      if (currentUser?.id) {
+        saveUserSearchQuery(currentUser.id, q);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [filters.searchQuery, currentUser?.id]);
+
+  const handleLoadMoreFromAttribute = useCallback(
+    async (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => {
+      const key = `${type}:${value}`;
+      if (!value || isFetchingAttribute || attributeFetchDone === key) return;
+      setIsFetchingAttribute(true);
+      try {
+        const fetched = await fetchBooksByAttribute(type, value, 24);
+        if (fetched.length > 0 && onAppendBooks) {
+          onAppendBooks(fetched);
+        }
+      } catch (err) {
+        console.warn('[LibraryView] Lỗi tìm thêm sách theo thuộc tính:', err);
+      } finally {
+        setIsFetchingAttribute(false);
+        setAttributeFetchDone(key);
+      }
+    },
+    [isFetchingAttribute, attributeFetchDone, onAppendBooks]
+  );
+
+  useEffect(() => {
+    const handleSlashFocus = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', handleSlashFocus);
+    return () => window.removeEventListener('keydown', handleSlashFocus);
+  }, []);
 
   useEffect(() => {
     setFilters((prev) => ({
@@ -58,6 +134,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const filteredBooks = useMemo(() => {
     return filterAndSortBooks(books, filters);
   }, [books, filters]);
+
+  // Khi lọc theo bất kỳ thuộc tính nào (tác giả, năm, NXB, thể loại) hoặc chọn thể loại mà số lượng sách ít (<= 3 cuốn):
+  // Tự động kích hoạt API Google Books để nạp thêm sách cho người dùng
+  useEffect(() => {
+    if (filters.tagFilter && filters.tagFilter.value) {
+      const key = `${filters.tagFilter.type}:${filters.tagFilter.value}`;
+      if (attributeFetchDone !== key && filteredBooks.length <= 3 && !isFetchingAttribute) {
+        handleLoadMoreFromAttribute(filters.tagFilter.type, filters.tagFilter.value);
+      }
+    } else if (filters.genre && filters.genre !== 'all') {
+      const key = `genre:${filters.genre}`;
+      if (attributeFetchDone !== key && filteredBooks.length <= 2 && !isFetchingAttribute) {
+        handleLoadMoreFromAttribute('genre', filters.genre);
+      }
+    }
+  }, [filters.tagFilter, filters.genre, filteredBooks.length, attributeFetchDone, isFetchingAttribute, handleLoadMoreFromAttribute]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / ITEMS_PER_PAGE));
   const currentBooks = useMemo(() => {
@@ -134,25 +226,52 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
       {/* Tag Attribute Filter Banner */}
       {filters.tagFilter && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl shadow-xs animate-fade-in">
-          <div className="flex items-center gap-2.5 text-sm text-slate-900">
-            <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-              <Tag className="w-4 h-4" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/90 dark:border-indigo-900/60 rounded-2xl shadow-xs animate-fade-in">
+          <div className="flex items-center gap-3 text-sm text-slate-900 dark:text-slate-100">
+            <span className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              {filters.tagFilter.type === 'author' && <User className="w-4 h-4" />}
+              {filters.tagFilter.type === 'publisher' && <Building2 className="w-4 h-4" />}
+              {filters.tagFilter.type === 'year' && <Calendar className="w-4 h-4" />}
+              {(filters.tagFilter.type === 'genre' || filters.tagFilter.type === 'category') && <BookOpen className="w-4 h-4" />}
+              {!['author', 'publisher', 'year', 'genre', 'category'].includes(filters.tagFilter.type) && <Tag className="w-4 h-4" />}
             </span>
             <div>
-              <p className="text-xs text-slate-500">Đang lọc theo thuộc tính:</p>
-              <p className="font-bold text-sm text-indigo-700">
+              <p className="text-xs text-slate-500 dark:text-slate-400">Đang lọc theo thuộc tính:</p>
+              <p className="font-bold text-sm text-indigo-700 dark:text-indigo-300">
                 {filters.tagFilter.label}
               </p>
             </div>
           </div>
-          <button
-            onClick={handleResetFilters}
-            className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 min-h-[40px] rounded-xl bg-white border border-slate-200 hover:bg-slate-900 hover:text-white hover:border-slate-900 text-xs font-semibold text-slate-700 transition-colors cursor-pointer shadow-xs"
-          >
-            <X className="w-3.5 h-3.5" />
-            <span>Xóa lọc</span>
-          </button>
+
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => handleLoadMoreFromAttribute(filters.tagFilter!.type, filters.tagFilter!.value)}
+              disabled={isFetchingAttribute}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-all cursor-pointer shadow-xs disabled:opacity-60"
+              title={`Gọi lại Google Books API để tìm nạp thêm sách cho ${filters.tagFilter.label}`}
+            >
+              {isFetchingAttribute ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Đang tải thêm từ Google Books...</span>
+                </>
+              ) : (
+                <>
+                  <DownloadCloud className="w-3.5 h-3.5" />
+                  <span>Tìm thêm sách từ Google Books</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-900 hover:text-white dark:hover:bg-slate-700 hover:border-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shadow-xs"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Xóa lọc</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -163,6 +282,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <div className="relative flex-1 max-w-lg">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
+              ref={searchInputRef}
               type="text"
               value={filters.searchQuery}
               onChange={(e) => {
@@ -170,15 +290,24 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 setCurrentPage(1);
               }}
               placeholder="Tìm theo tựa sách, tác giả, nhà xuất bản..."
-              className="w-full pl-10 pr-9 py-2 min-h-[44px] bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 focus:border-indigo-600 transition-all"
+              className="w-full pl-10 pr-10 py-2 min-h-[44px] bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 focus:border-indigo-600 transition-all"
             />
+            {!filters.searchQuery && (
+              <kbd
+                aria-hidden="true"
+                className="hidden sm:inline-flex items-center justify-center absolute right-3 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[11px] font-mono font-medium text-slate-400 bg-white border border-slate-200 rounded-md pointer-events-none select-none"
+              >
+                /
+              </kbd>
+            )}
             {filters.searchQuery && (
               <button
+                type="button"
                 onClick={() => {
                   setFilters((prev) => ({ ...prev, searchQuery: '' }));
                   setCurrentPage(1);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
                 aria-label="Xóa từ khóa tìm kiếm"
               >
                 <X className="w-4 h-4" />
@@ -188,22 +317,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
           <div className="flex items-center gap-2 justify-between sm:justify-end">
             <div className="flex items-center gap-1.5">
-              <label htmlFor="filter-sort-select" className="sr-only">Sắp xếp theo</label>
-              <select
+              <CustomSelect
                 id="filter-sort-select"
+                ariaLabel="Sắp xếp theo"
+                className="w-52 sm:w-56"
                 value={filters.sortBy}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, sortBy: e.target.value as any }));
+                onChange={(val) => {
+                  setFilters((prev) => ({ ...prev, sortBy: val as FilterState['sortBy'] }));
                   setCurrentPage(1);
                 }}
-                className="px-3 py-2 min-h-[44px] bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 cursor-pointer shadow-2xs"
-              >
-                <option value="featured">Phổ biến &amp; Đánh giá cao</option>
-                <option value="title">Tên sách (A → Z)</option>
-                <option value="year">Năm xuất bản mới nhất</option>
-                <option value="pages-asc">Số trang (Ngắn trước)</option>
-                <option value="pages-desc">Số trang (Dài trước)</option>
-              </select>
+                options={[
+                  { value: 'featured', label: 'Phổ biến & Đánh giá cao' },
+                  { value: 'title', label: 'Tên sách (A → Z)' },
+                  { value: 'year', label: 'Năm xuất bản mới nhất' },
+                  { value: 'pages-asc', label: 'Số trang (Ngắn trước)' },
+                  { value: 'pages-desc', label: 'Số trang (Dài trước)' },
+                ]}
+              />
             </div>
 
             <button
@@ -266,6 +396,24 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               </button>
             );
           })}
+
+          {/* Nút tìm thêm sách của thể loại đang chọn từ Google Books */}
+          {filters.genre !== 'all' && (
+            <button
+              type="button"
+              onClick={() => handleLoadMoreFromAttribute('genre', filters.genre)}
+              disabled={isFetchingAttribute}
+              className="px-3.5 py-1.5 rounded-xl min-h-[36px] font-semibold text-xs transition-all shrink-0 cursor-pointer bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-600 hover:text-white flex items-center gap-1.5 shadow-2xs disabled:opacity-60"
+              title={`Tải thêm sách thuộc thể loại "${filters.genre}" từ Google Books`}
+            >
+              {isFetchingAttribute ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <DownloadCloud className="w-3.5 h-3.5 text-indigo-500" />
+              )}
+              <span>+ Tìm thêm sách {filters.genre} từ Google Books</span>
+            </button>
+          )}
         </div>
 
         {/* Collapsible Advanced Filters */}
@@ -275,39 +423,39 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <label htmlFor="adv-filter-cat" className="block font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Phân vùng sách
               </label>
-              <select
+              <CustomSelect
                 id="adv-filter-cat"
                 value={filters.category}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, category: e.target.value as BookCategory }));
+                onChange={(val) => {
+                  setFilters((prev) => ({ ...prev, category: val as BookCategory }));
                   setCurrentPage(1);
                 }}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-              >
-                <option value="all">Tất cả nguồn xuất bản</option>
-                <option value="vietnam">Sách trong nước</option>
-                <option value="world">Sách dịch quốc tế</option>
-              </select>
+                options={[
+                  { value: 'all', label: 'Tất cả nguồn xuất bản' },
+                  { value: 'vietnam', label: 'Sách trong nước' },
+                  { value: 'world', label: 'Sách dịch quốc tế' },
+                ]}
+              />
             </div>
 
             <div>
               <label htmlFor="adv-filter-len" className="block font-semibold text-slate-500 uppercase tracking-wider mb-1">
                 Dung lượng sách
               </label>
-              <select
+              <CustomSelect
                 id="adv-filter-len"
                 value={filters.length}
-                onChange={(e) => {
-                  setFilters((prev) => ({ ...prev, length: e.target.value as any }));
+                onChange={(val) => {
+                  setFilters((prev) => ({ ...prev, length: val as FilterState['length'] }));
                   setCurrentPage(1);
                 }}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800"
-              >
-                <option value="all">Mọi độ dài</option>
-                <option value="short">Dưới 200 trang (Đọc nhanh)</option>
-                <option value="medium">200 - 400 trang (Tiêu chuẩn)</option>
-                <option value="long">Trên 400 trang (Chuyên sâu)</option>
-              </select>
+                options={[
+                  { value: 'all', label: 'Mọi độ dài' },
+                  { value: 'short', label: 'Dưới 200 trang (Đọc nhanh)' },
+                  { value: 'medium', label: '200 - 400 trang (Tiêu chuẩn)' },
+                  { value: 'long', label: 'Trên 400 trang (Chuyên sâu)' },
+                ]}
+              />
             </div>
           </div>
         )}

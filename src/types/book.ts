@@ -41,7 +41,7 @@ export interface ReadingGoal {
 }
 
 export interface QuickFilterTag {
-  type: 'author' | 'publisher' | 'year';
+  type: 'author' | 'publisher' | 'year' | 'genre' | 'category';
   value: string | number;
   label: string;
 }

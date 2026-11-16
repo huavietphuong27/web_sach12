@@ -5,7 +5,6 @@ import { userPreferenceEngine } from '../services/userPreferenceEngine';
 import { Book } from '../types/book';
 import {
   X,
-  User,
   History,
   FileText,
   Star,
@@ -14,13 +13,8 @@ import {
   LogOut,
   Trash2,
   Check,
-  Calendar,
-  Bookmark,
   Sparkles,
   BookOpen,
-  Activity,
-  TrendingUp,
-  BarChart2,
 } from 'lucide-react';
 
 interface UserProfileModalProps {
@@ -57,6 +51,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setEditBio(currentUser.bio || '');
     }
   }, [currentUser, isProfileModalOpen]);
+
+  React.useEffect(() => {
+    if (!isProfileModalOpen || !currentUser) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeProfileModal();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isProfileModalOpen, currentUser, closeProfileModal]);
 
   if (!isProfileModalOpen || !currentUser) return null;
 
@@ -135,8 +148,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
 
             <button
+              type="button"
               onClick={logout}
-              className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-rose-500/80 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer self-center sm:self-start shadow-2xs"
+              className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 hover:text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer self-center sm:self-start shadow-2xs"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Đăng xuất</span>
@@ -242,10 +256,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </span>
                 {currentUser.history && currentUser.history.length > 0 && (
                   <button
+                    type="button"
                     onClick={clearHistory}
-                    className="text-xs text-rose-600 hover:text-rose-800 font-semibold inline-flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-700 hover:bg-rose-500/15 hover:text-rose-700 dark:text-rose-400 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3.5 h-3.5" />
                     <span>Xóa toàn bộ lịch sử</span>
                   </button>
                 )}
@@ -366,9 +381,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             <span>{note.bookTitle}</span>
                           </h4>
                           <button
+                            type="button"
                             onClick={() => deleteBookNote(note.bookId)}
-                            className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                            className="p-1.5 rounded-lg bg-rose-500/10 text-rose-700 hover:bg-rose-500/15 hover:text-rose-700 dark:text-rose-400 transition-colors cursor-pointer"
                             title="Xóa ghi chú này"
+                            aria-label="Xóa ghi chú này"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -493,7 +510,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       Từ khóa chủ đề được AI ghi nhận
                     </h4>
                     <div className="flex flex-wrap gap-1.5">
-                      {topKeywords.map(([word, score]) => (
+                      {topKeywords.map(([word]) => (
                         <span key={word} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-medium">
                           #{word}
                         </span>

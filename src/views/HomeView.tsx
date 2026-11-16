@@ -1,9 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Book, ReadingGoal } from '../types/book';
 import { READING_GOALS } from '../data/content';
 import { BookRowGrid } from '../components/BookRowGrid';
 import { BookSwitcherWidget } from '../components/BookSwitcherWidget';
-import { Sparkles, ArrowRight, Bookmark, ArrowUpRight, MessageSquare, Zap, Target, TrendingUp } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { getPersonalizedHomeFeed } from '../services/homeRecommendations';
+import {
+  Sparkles,
+  ArrowRight,
+  Bookmark,
+  ArrowUpRight,
+  MessageSquare,
+  Zap,
+  Target,
+  TrendingUp,
+  Search,
+} from 'lucide-react';
 
 interface HomeViewProps {
   books: Book[];
@@ -11,7 +23,7 @@ interface HomeViewProps {
   onNavigate: (route: string) => void;
   onSelectGoal: (goal: ReadingGoal) => void;
   onQuickSearch: (query: string) => void;
-  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
 }
 
 const HERO_TITLE = 'Mô tả điều bạn muốn đọc, AI sẽ phân tích và gợi ý sách phù hợp';
@@ -37,6 +49,22 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const [heroInput, setHeroInput] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isWordsRevealed, setIsWordsRevealed] = useState(false);
+  const heroInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleSlashFocus = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      heroInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', handleSlashFocus);
+    return () => window.removeEventListener('keydown', handleSlashFocus);
+  }, []);
 
   useEffect(() => {
     const prefersReduced =
@@ -54,6 +82,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
     return () => clearTimeout(timer);
   }, []);
+
+  const { currentUser } = useAuth();
+
+  // Gợi ý cá nhân hóa: Chỉ kích hoạt cho tài khoản người dùng đã đăng nhập thật (KHÔNG áp dụng khi chưa đăng nhập hoặc đăng nhập tài khoản demo)
+  const personalizedFeed = useMemo(() => {
+    return getPersonalizedHomeFeed(books, currentUser);
+  }, [books, currentUser]);
 
   const featuredBooks = [...books]
     .sort(
@@ -136,6 +171,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 Nhập bất kỳ câu hỏi, tâm sự hay chủ đề bạn tìm kiếm
               </label>
               <input
+                ref={heroInputRef}
                 id="hero-prompt-input"
                 type="text"
                 value={heroInput}
@@ -145,6 +181,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 placeholder="Ví dụ: Tôi muốn học đầu tư tài chính, Tôi đang mất ngủ vì stress..."
                 className="w-full text-sm sm:text-base py-2 bg-transparent text-slate-900 placeholder:text-slate-400 outline-none min-h-[44px]"
               />
+              <kbd
+                aria-hidden="true"
+                className="hidden sm:inline-flex items-center justify-center px-1.5 py-0.5 text-[11px] font-mono font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded-md shrink-0 pointer-events-none select-none"
+              >
+                /
+              </kbd>
             </div>
             <button
               type="submit"
@@ -174,7 +216,58 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
       </section>
 
-      {/* 2. Interactive Book Switcher Widget */}
+      {/* 2. Personalized Book Feed: Chỉ hiển thị khi đã đăng nhập tài khoản thật (Không hiển thị cho demo / khách) */}
+      {personalizedFeed.isPersonalized && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="border-t border-slate-200 pt-10">
+            <div className="p-6 sm:p-8 bg-gradient-to-br from-indigo-50/90 via-purple-50/40 to-white dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-900 border border-indigo-200/80 dark:border-indigo-900/60 rounded-3xl shadow-xs space-y-6 animate-fade-in">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-indigo-100 dark:border-indigo-950 pb-5">
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-600 text-white text-[11px] font-bold tracking-wide uppercase shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Dành Riêng Cho Bạn (Cá Nhân Hóa)</span>
+                  </div>
+                  <h2 className="font-serif text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                    Gợi Ý Theo Nhu Cầu &amp; Lịch Sử Của {currentUser?.name}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+                    AI tự động tổng hợp từ {personalizedFeed.basisSummary.viewedBooksCount} cuốn sách bạn đã xem
+                    {personalizedFeed.basisSummary.recentSearchesCount > 0 &&
+                      `, ${personalizedFeed.basisSummary.recentSearchesCount} lượt tìm kiếm gần đây`}
+                    {' '}và sở thích đọc cá nhân để đề xuất các tác phẩm phù hợp nhất.
+                  </p>
+                </div>
+
+                {/* Badges tóm tắt căn cứ gợi ý */}
+                <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+                  {personalizedFeed.basisSummary.topKeywords.length > 0 && (
+                    <span className="text-xs px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-800 border border-indigo-200 dark:border-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium inline-flex items-center gap-1.5 shadow-2xs">
+                      <Search className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Tìm kiếm: {personalizedFeed.basisSummary.topKeywords.join(', ')}</span>
+                    </span>
+                  )}
+                  {personalizedFeed.basisSummary.topTopics.length > 0 && (
+                    <span className="text-xs px-3 py-1.5 rounded-xl bg-white/90 dark:bg-slate-800 border border-purple-200 dark:border-purple-900 text-purple-700 dark:text-purple-300 font-medium inline-flex items-center gap-1.5 shadow-2xs">
+                      <Bookmark className="w-3.5 h-3.5 text-purple-500" />
+                      <span>Chủ đề: {personalizedFeed.basisSummary.topTopics.slice(0, 2).join(' · ')}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Grid sách cá nhân hóa với matchReasons giải thích tại sao gợi ý cuốn sách này */}
+              <BookRowGrid
+                books={personalizedFeed.books}
+                onSelectBook={onSelectBook}
+                onFilterByAttribute={onFilterByAttribute}
+                matchReasonsMap={personalizedFeed.matchReasonsMap}
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 3. Interactive Book Switcher Widget */}
       <BookSwitcherWidget
         books={books}
         onSelectBook={onSelectBook}

@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Book } from '../types/book';
 import { searchVietnameseBooks, fetchFeaturedVietnameseBooks } from '../services/googleBooks';
-import { Search, Globe, Loader2, ExternalLink, RefreshCw, Zap } from 'lucide-react';
+import { Search, Globe, ExternalLink, RefreshCw, Zap } from 'lucide-react';
+import { BookmarkButton } from '../components/BookmarkButton';
+import { BookCardSkeleton } from '../components/BookCardSkeleton';
+import { useAuth } from '../context/AuthContext';
 
 interface ExploreViewProps {
   onSelectBook: (book: Book) => void;
@@ -24,6 +27,23 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ onSelectBook }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const { isFavorite, toggleFavorite } = useAuth();
+
+  useEffect(() => {
+    const handleSlashFocus = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
+        return;
+      }
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', handleSlashFocus);
+    return () => window.removeEventListener('keydown', handleSlashFocus);
+  }, []);
 
   const loadDefault = useCallback(async () => {
     setLoading(true);
@@ -102,13 +122,20 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ onSelectBook }) => {
         <div className="relative group">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
           <input
+            ref={searchInputRef}
             id="explore-search"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Tìm kiếm mọi chủ đề: trí tuệ nhân tạo, khởi nghiệp, tâm lý học, tài chính..."
-            className="w-full pl-10 pr-4 py-2.5 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 focus:border-indigo-600 transition-all"
+            className="w-full pl-10 pr-12 py-2.5 min-h-[48px] bg-slate-50 border border-slate-200 rounded-xl text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 focus:border-indigo-600 transition-all"
           />
+          <kbd
+            aria-hidden="true"
+            className="hidden sm:inline-flex items-center justify-center absolute right-3.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[11px] font-mono font-medium text-slate-400 bg-white border border-slate-200 rounded-md pointer-events-none select-none"
+          >
+            /
+          </kbd>
         </div>
 
         {/* Quick Topic Chips */}
@@ -142,9 +169,14 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ onSelectBook }) => {
 
       {/* Loading state */}
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
-          <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
-          <span className="font-medium">Đang tìm sách trên Google Books...</span>
+        <div
+          aria-busy="true"
+          aria-label="Đang tìm sách trên Google Books"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6"
+        >
+          {Array.from({ length: 8 }).map((_, idx) => (
+            <BookCardSkeleton key={`explore-skeleton-${idx}`} />
+          ))}
         </div>
       )}
 
@@ -181,59 +213,70 @@ export const ExploreView: React.FC<ExploreViewProps> = ({ onSelectBook }) => {
               className="group bg-white rounded-2xl border border-slate-200 hover:border-indigo-500/80 hover:shadow-md transition-all overflow-hidden flex flex-col shadow-xs"
             >
               {/* Cover */}
-              <button
-                onClick={() => onSelectBook(book)}
-                className="relative aspect-[2/3] w-full bg-slate-100 cursor-pointer overflow-hidden"
-                aria-label={`Xem chi tiết ${book.title}`}
-              >
-                <div
-                  className="absolute inset-0 flex flex-col items-center justify-center text-center p-4"
-                  style={{
-                    backgroundColor: book.coverPalette.bg,
-                    borderLeft: `8px solid ${book.coverPalette.spine}`,
-                  }}
+              <div className="relative aspect-[2/3] w-full bg-slate-100 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => onSelectBook(book)}
+                  className="absolute inset-0 w-full h-full cursor-pointer text-left"
+                  aria-label={`Xem chi tiết ${book.title}`}
                 >
-                  <span
-                    className="font-serif font-bold text-sm leading-snug line-clamp-3"
-                    style={{ color: book.coverPalette.text }}
+                  <div
+                    className="absolute inset-0 flex flex-col items-center justify-center text-center p-4"
+                    style={{
+                      backgroundColor: book.coverPalette.bg,
+                      borderLeft: `8px solid ${book.coverPalette.spine}`,
+                    }}
                   >
-                    {book.title}
-                  </span>
-                </div>
-                {book.coverUrl && (
-                  <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-slate-900/5 z-10">
-                    <img
-                      src={book.coverUrl}
-                      alt=""
-                      aria-hidden="true"
-                      className="absolute inset-0 w-full h-full object-cover blur-sm opacity-25 scale-110 pointer-events-none"
-                    />
-                    <img
-                      src={book.coverUrl}
-                      alt={`Bìa sách ${book.title}`}
-                      loading="lazy"
-                      className="relative max-w-full max-h-full object-contain p-1 z-10 drop-shadow-xs transition-transform duration-300 group-hover:scale-105"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                    <span
+                      className="font-serif font-bold text-sm leading-snug line-clamp-3"
+                      style={{ color: book.coverPalette.text }}
+                    >
+                      {book.title}
+                    </span>
                   </div>
-                )}
-              </button>
+                  {book.coverUrl && (
+                    <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-slate-900/5 z-10">
+                      <img
+                        src={book.coverUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover blur-sm opacity-25 scale-110 pointer-events-none"
+                      />
+                      <img
+                        src={book.coverUrl}
+                        alt={`Bìa sách ${book.title}`}
+                        loading="lazy"
+                        className="relative max-w-full max-h-full object-contain p-1 z-10 drop-shadow-xs transition-transform duration-300 group-hover:scale-105"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                </button>
+                <div className="absolute top-2.5 right-2.5 z-20">
+                  <BookmarkButton
+                    isActive={isFavorite(book.id)}
+                    onToggle={() => toggleFavorite(book)}
+                  />
+                </div>
+              </div>
 
               {/* Info */}
-              <div className="p-3.5 sm:p-4 flex flex-col flex-1 gap-1">
+              <div className="p-3.5 sm:p-4 flex flex-col flex-1 min-w-0 gap-1">
                 <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
                   {book.genre}
                 </span>
                 <button
+                  type="button"
                   onClick={() => onSelectBook(book)}
-                  className="text-left font-serif font-bold text-sm text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug cursor-pointer"
+                  title={book.title}
+                  className="text-left font-serif font-bold text-sm text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug text-pretty cursor-pointer"
                 >
                   {book.title}
                 </button>
                 <p className="text-xs text-slate-500 line-clamp-1">{book.author}</p>
-                <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-400 mt-auto pt-2">
+                <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-400 mt-auto pt-2 tabular-nums">
                   {book.publishYear > 0 && <span>{book.publishYear}</span>}
                   {book.pages > 0 && (
                     <>

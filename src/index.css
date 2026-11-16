@@ -1,64 +1,321 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --bg-paper: #F8FAFC;
-    --bg-card: #FFFFFF;
-    --color-wood: #0F172A;
-    --color-wood-hover: #1E293B;
-    --color-wood-active: #334155;
-    --color-wood-soft: #F1F5F9;
-    --color-ink: #0F172A;
-    --color-muted: #64748B;
-    --color-highlighter: rgba(99, 102, 241, 0.22);
-    --color-accent: #4F46E5;
-    --border-subtle: #E2E8F0;
-  }
+@custom-variant dark (&:where(.dark, .dark *, .force-dark, .force-dark *):not(:where(.force-light, .force-light *)));
 
+:root,
+.force-light {
+  color-scheme: light;
+
+  --app-font: 'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --app-font-serif: 'Noto Serif', Georgia, Cambria, 'Times New Roman', serif;
+
+  /* Brand & Accent */
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-foreground: #ffffff;
+  --primary-light: rgba(79, 70, 229, 0.08);
+
+  /* Surfaces & Ink */
+  --background: #f8fafc;
+  --background-hover: #e2e8f0;
+  --surface: #ffffff;
+  --surface-hover: #f8fafc;
+  --surface-overlay: #ffffff;
+  --item-hover: #f1f5f9;
+  --foreground: #0f172a;
+  --muted: #64748b;
+
+  /* Borders */
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --border-focus: #4f46e5;
+  --ring-focus: rgba(79, 70, 229, 0.18);
+  --tab-rail: color-mix(in srgb, var(--foreground) 10%, transparent);
+
+  /* Controls */
+  --secondary: #f1f5f9;
+  --secondary-hover: #e2e8f0;
+  --button-hover-surface: #f1f5f9;
+  --button-hover-page: #e2e8f0;
+  --button-hover: var(--button-hover-page);
+  --tab-selected: color-mix(in srgb, var(--foreground) 8%, transparent);
+
+  /* Elevations */
+  --elevation-card: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --elevation-popover: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.08);
+  --elevation-modal: 0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.08);
+
+  /* Semantic Status Tokens (M7, M30) */
+  --danger: #be123c;
+  --danger-bg: rgb(244 63 94 / 0.1);
+  --danger-bg-hover: rgb(244 63 94 / 0.15);
+  --error: #ef4444;
+  --error-ring: rgb(239 68 68 / 0.12);
+  --error-text: #dc2626;
+  --error-bg: #fef2f2;
+  --error-border: #fecaca;
+  --error-strong: #b91c1c;
+  --success-bg: #ecfdf5;
+  --success: #047857;
+  --warning-bg: #fffbeb;
+  --warning: #b45309;
+  --neutral-bg: #f4f4f5;
+  --neutral: #52525b;
+
+  /* Legacy aliases preserved for compatibility */
+  --bg-paper: var(--background);
+  --bg-card: var(--surface);
+  --color-wood: #0f172a;
+  --color-wood-hover: #1e293b;
+  --color-wood-active: #334155;
+  --color-wood-soft: #f1f5f9;
+  --color-ink: var(--foreground);
+  --color-muted: var(--muted);
+  --color-highlighter: rgba(99, 102, 241, 0.22);
+  --color-accent: var(--primary);
+  --border-subtle: var(--border);
+}
+
+.dark,
+.force-dark {
+  color-scheme: dark;
+
+  --primary: #818cf8;
+  --primary-hover: #a5b4fc;
+  --primary-foreground: #090d16;
+  --primary-light: rgba(129, 140, 248, 0.14);
+
+  --background: #0b0f19;
+  --background-hover: #1e293b;
+  --surface: #131926;
+  --surface-hover: #1a2234;
+  --surface-overlay: #1a2234;
+  --item-hover: rgb(255 255 255 / 0.06);
+  --foreground: #f1f5f9;
+  --muted: #94a3b8;
+
+  --border: rgba(148, 163, 184, 0.16);
+  --border-strong: rgba(148, 163, 184, 0.28);
+  --border-focus: rgba(129, 140, 248, 0.7);
+  --ring-focus: rgba(129, 140, 248, 0.22);
+
+  --secondary: rgb(255 255 255 / 0.08);
+  --secondary-hover: rgb(255 255 255 / 0.14);
+  --button-hover-surface: rgb(255 255 255 / 0.08);
+  --button-hover-page: rgb(255 255 255 / 0.08);
+  --button-hover: rgb(255 255 255 / 0.08);
+
+  --elevation-card: 0 1px 2px 0 rgb(0 0 0 / 0.45);
+  --elevation-popover: 0 10px 15px -3px rgb(0 0 0 / 0.55), 0 4px 6px -4px rgb(0 0 0 / 0.45);
+  --elevation-modal: 0 20px 25px -5px rgb(0 0 0 / 0.65), 0 8px 10px -6px rgb(0 0 0 / 0.55);
+
+  --danger: #fb7185;
+  --danger-bg: rgb(244 63 94 / 0.14);
+  --danger-bg-hover: rgb(244 63 94 / 0.22);
+  --error: #f87171;
+  --error-ring: rgb(248 113 113 / 0.2);
+  --error-text: #fca5a5;
+  --error-bg: rgb(239 68 68 / 0.14);
+  --error-border: rgb(239 68 68 / 0.32);
+  --error-strong: #fca5a5;
+  --success-bg: rgb(16 185 129 / 0.15);
+  --success: #34d399;
+  --warning-bg: rgb(245 158 11 / 0.15);
+  --warning: #fb923c;
+  --neutral-bg: rgb(148 163 184 / 0.15);
+  --neutral: #cbd5e1;
+
+  --bg-paper: var(--background);
+  --bg-card: var(--surface);
+  --color-ink: var(--foreground);
+  --color-muted: var(--muted);
+  --color-highlighter: rgba(129, 140, 248, 0.28);
+  --color-accent: var(--primary);
+  --border-subtle: var(--border);
+}
+
+@theme inline {
+  --font-sans: var(--app-font);
+  --font-serif: var(--app-font-serif);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-light: var(--primary-light);
+
+  --color-background: var(--background);
+  --color-background-hover: var(--background-hover);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-item-hover: var(--item-hover);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-tab-rail: var(--tab-rail);
+  --color-secondary: var(--secondary);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-button-hover: var(--button-hover);
+  --color-tab-selected: var(--tab-selected);
+
+  --border-color-focus: var(--border-focus);
+  --ring-color-focus: var(--ring-focus);
+
+  --shadow-card: var(--elevation-card);
+  --shadow-popover: var(--elevation-popover);
+  --shadow-modal: var(--elevation-modal);
+}
+
+.bg-surface *,
+.bg-surface-overlay * { --button-hover: var(--button-hover-surface); }
+.bg-surface .bg-background *,
+[class~="hover:bg-item-hover"]:hover * { --button-hover: var(--button-hover-page); }
+
+@layer base {
   html {
     scroll-behavior: smooth;
   }
 
   body {
-    font-family: 'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: var(--bg-paper);
-    color: var(--color-ink);
+    font-family: var(--app-font);
+    background-color: var(--background);
+    color: var(--foreground);
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, .font-serif {
-    font-family: 'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  .font-sans {
+    font-family: var(--app-font);
   }
+
+  .font-serif {
+    font-family: var(--app-font-serif);
+  }
+}
+
+/* Dark mode semantic surface/ink adapters for existing Tailwind utility classes */
+.dark .bg-\[\#F8FAFC\] {
+  background-color: var(--background) !important;
+}
+.dark .text-\[\#0F172A\] {
+  color: var(--foreground) !important;
+}
+.dark .text-\[\#64748B\] {
+  color: var(--muted) !important;
+}
+.dark .border-\[\#E2E8F0\] {
+  border-color: var(--border) !important;
+}
+.dark .bg-white,
+.dark .bg-white\/95,
+.dark .bg-white\/90 {
+  background-color: var(--surface) !important;
+}
+.dark .bg-slate-50,
+.dark .bg-slate-50\/70,
+.dark .bg-slate-50\/50 {
+  background-color: #182032 !important;
+}
+.dark .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+.dark .text-slate-900,
+.dark .text-slate-950,
+.dark .text-slate-800 {
+  color: var(--foreground) !important;
+}
+.dark .text-slate-700 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-600,
+.dark .text-slate-500 {
+  color: var(--muted) !important;
+}
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-200\/90,
+.dark .border-slate-100 {
+  border-color: var(--border) !important;
+}
+.dark .text-indigo-600,
+.dark .text-indigo-700,
+.dark .text-\[\#4F46E5\] {
+  color: #818cf8 !important;
+}
+.dark .bg-indigo-50,
+.dark .bg-indigo-50\/70,
+.dark .bg-indigo-50\/60 {
+  background-color: rgba(129, 140, 248, 0.14) !important;
+}
+.dark .border-indigo-200,
+.dark .border-indigo-200\/60,
+.dark .border-indigo-200\/70,
+.dark .border-indigo-200\/80,
+.dark .border-indigo-100 {
+  border-color: rgba(129, 140, 248, 0.28) !important;
+}
+.dark button.bg-slate-900 {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+.dark button.bg-slate-900:hover {
+  background-color: #4338ca !important;
 }
 
 /* Accessible focus styling */
 :focus-visible {
-  outline: 2px solid #4F46E5;
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
-/* Clean scrollbar & no-scrollbar utility */
-.no-scrollbar::-webkit-scrollbar {
+/* Clean scrollbar & auto-hiding 4px scrollbar (I18) */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-clean::-webkit-scrollbar {
   display: none;
 }
-.no-scrollbar {
+.no-scrollbar,
+.scrollbar-clean {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
+* {
+  --scrollbar-thumb: transparent;
+}
+*:hover {
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+.is-scrolling {
+  --scrollbar-thumb: color-mix(in srgb, var(--foreground) 30%, transparent);
+}
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.25);
+  background: var(--scrollbar-thumb);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.45);
+  background: color-mix(in srgb, var(--foreground) 42%, transparent);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  *:hover {
+    scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent) transparent;
+  }
+  .is-scrolling {
+    scrollbar-color: color-mix(in srgb, var(--foreground) 30%, transparent) transparent;
+  }
 }
 
 /* Page fade transition */

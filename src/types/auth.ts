@@ -28,6 +28,7 @@ export interface UserProfile {
   name: string;
   avatar: string; // avatar identifier or url
   bio?: string;
+  role?: 'admin' | 'user';
   preferredStyle?: BookStyle;
   favoriteGenres: string[];
   createdAt: string;

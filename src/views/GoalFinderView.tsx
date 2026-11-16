@@ -12,6 +12,8 @@ import {
 } from '../services/recommendationModels';
 import { fetchExtraDatasetBatch, EXTRA_QUERY_BATCHES } from '../services/googleBooks';
 import { BookRowGrid } from '../components/BookRowGrid';
+import { BookCardSkeleton } from '../components/BookCardSkeleton';
+import { CustomSelect } from '../components/ui/CustomSelect';
 import { useAuth } from '../context/AuthContext';
 import { userPreferenceEngine } from '../services/userPreferenceEngine';
 import { eventTracker } from '../services/eventTracker';
@@ -35,7 +37,7 @@ interface GoalFinderViewProps {
   onSelectBook: (book: Book) => void;
   initialGoal?: ReadingGoal | null;
   initialQuery?: string;
-  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
   onAppendBooks?: (newBooks: Book[]) => number;
   favoriteBookIds?: string[];
 }
@@ -60,8 +62,18 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
   const [executionTimeMs, setExecutionTimeMs] = useState<number>(1.2);
   const [showBenchmark, setShowBenchmark] = useState<boolean>(true);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState<boolean>(true);
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.location.hash.includes('admin') || window.location.search.includes('admin=1');
+    }
+    return false;
+  });
 
   const { currentUser } = useAuth();
+  const isTeacherOrAdmin =
+    isAdminMode ||
+    currentUser?.role === 'admin' ||
+    Boolean(currentUser?.email && (currentUser.email.startsWith('admin') || currentUser.email.includes('giangvien')));
 
   // State nạp thêm dữ liệu
   const [batchIndex, setBatchIndex] = useState<number>(0);
@@ -210,269 +222,300 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-10">
       {/* 1. Header & Title */}
-      <div className="max-w-3xl space-y-3">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-200/60 text-indigo-700 text-xs font-semibold">
-          <Target className="w-4 h-4 text-indigo-600" />
-          <span>Hệ thống Đa Mô Hình Gợi Ý Sách &amp; Thực Nghiệm Dữ Liệu</span>
-        </div>
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
-          Tìm Sách Theo Mục Tiêu &amp; Mô Hình AI/ML
-        </h1>
-        <p className="text-base text-slate-600 leading-relaxed">
-          Chạy trực tiếp 5 mô hình gợi ý sách (<strong>Hybrid Ensemble</strong>,{' '}
-          <strong>TF-IDF Cosine Similarity</strong>, <strong>Okapi BM25</strong>,{' '}
-          <strong>Collaborative Filtering KNN</strong>, <strong>Rule-Based</strong>) và nạp thêm dữ liệu để đối sánh độ chính xác.
-        </p>
-      </div>
-
-      {/* 2. Trung tâm Quản lý Dữ liệu & Huấn luyện Model (Chạy thêm dữ liệu + Chạy thêm model) */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider">
-              <Database className="w-4 h-4" />
-              <span>Trạng thái Tập dữ liệu &amp; Vector hóa Thời gian thực</span>
-            </div>
-            <h2 className="font-serif text-lg sm:text-xl font-bold text-slate-900">
-              Kho Dữ Liệu Huấn Luyện &amp; Kiểm Thử Mô Hình
-            </h2>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
+        <div className="max-w-2xl space-y-2">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-xs font-semibold">
+            <Target className="w-4 h-4 text-accent" />
+            <span>Gợi Ý Sách Cá Nhân Hóa Theo Mục Tiêu &amp; Nhu Cầu</span>
           </div>
-
-          {/* Nút thao tác nạp thêm dữ liệu */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleFetchMoreGoogleBooks}
-              disabled={isFetchingData}
-              className="px-3.5 py-2 min-h-[40px] rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
-            >
-              {isFetchingData ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <PlusCircle className="w-3.5 h-3.5" />
-              )}
-              <span>
-                Chạy thêm dữ liệu Google Books ({EXTRA_QUERY_BATCHES[batchIndex % EXTRA_QUERY_BATCHES.length].label.split(':')[0]})
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLoadExtendedDataset}
-              className="px-3.5 py-2 min-h-[40px] rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Layers className="w-3.5 h-3.5 text-indigo-300" />
-              <span>+ Nạp Dataset Mở Rộng (8 sách chuẩn)</span>
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.json"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-2 min-h-[40px] rounded-xl bg-white border border-slate-200 hover:border-indigo-500 hover:text-indigo-600 text-slate-700 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Upload className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Nhập file CSV / JSON</span>
-            </button>
-
-            <a
-              href="/dataset/books_dataset.csv"
-              download="books_dataset.csv"
-              className="px-3 py-2 min-h-[40px] rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-all inline-flex items-center gap-1.5"
-              title="Tải về bộ dữ liệu mẫu chuẩn CSV"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
-              <span>Dataset CSV mẫu</span>
-            </a>
-          </div>
+          <h1 className="font-serif text-3xl sm:text-4xl font-bold text-ink tracking-tight">
+            Tìm Sách Theo Mục Tiêu Đọc
+          </h1>
+          <p className="text-sm sm:text-base text-ink-secondary leading-relaxed">
+            Chọn chủ đề bạn quan tâm hoặc nhập mục tiêu cụ thể, hệ thống sẽ phân tích và đề xuất danh mục sách phù hợp nhất.
+          </p>
         </div>
 
-        {/* Thông báo khi nạp dữ liệu thành công */}
-        {dataStatusMsg && (
-          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{dataStatusMsg}</span>
-          </div>
+        {/* Nút bật/tắt Chế độ Quản trị & Báo cáo Giảng viên (Chỉ hiển thị khi là Admin/Giảng viên hoặc kích hoạt #admin) */}
+        {isTeacherOrAdmin && (
+          <button
+            type="button"
+            onClick={() => setIsAdminMode((prev) => !prev)}
+            className={`px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 shrink-0 self-start md:self-center shadow-xs ${
+              isAdminMode
+                ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+                : 'bg-surface hover:bg-button-hover text-ink-secondary hover:text-ink border-border-strong'
+            }`}
+            title="Bật/tắt khu vực nạp tập dữ liệu, vector hóa TF-IDF và bảng đánh giá 5 mô hình dành cho Giảng viên"
+          >
+            <Database className="w-4 h-4 text-accent" />
+            <span>{isAdminMode ? 'Thu gọn Bảng Kiểm Thử Đồ Án' : 'Bảng Quản Trị & Kiểm Thử (Giảng Viên)'}</span>
+          </button>
         )}
-
-        {/* Chỉ số thống kê Corpus */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[11px] text-slate-500 block">Tổng số đầu sách</span>
-            <span className="text-lg font-extrabold text-slate-900 tabular-nums">
-              {corpusStats.totalBooks} cuốn
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[11px] text-slate-500 block">Không gian TF-IDF</span>
-            <span className="text-lg font-extrabold text-indigo-600 tabular-nums">
-              {corpusStats.vocabularySize.toLocaleString('vi-VN')} chiều
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[11px] text-slate-500 block">Độ dài TB (BM25 avgdl)</span>
-            <span className="text-lg font-extrabold text-slate-900 tabular-nums">
-              {corpusStats.avgDocLength} tokens
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[11px] text-slate-500 block">Ma trận User-Item CF</span>
-            <span className="text-lg font-extrabold text-slate-900 tabular-nums">
-              {corpusStats.totalUserInteractions} ratings
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <span className="text-[11px] text-slate-500 block">Phân bố Việt / Quốc tế</span>
-            <span className="text-lg font-extrabold text-slate-900 tabular-nums">
-              {corpusStats.vietnamBooks} / {corpusStats.worldBooks}
-            </span>
-          </div>
-          <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80">
-            <span className="text-[11px] text-indigo-700 font-medium block">Thời gian chạy Model</span>
-            <span className="text-lg font-extrabold text-indigo-700 tabular-nums">
-              {executionTimeMs} ms
-            </span>
-          </div>
-        </div>
-
-        {/* Bảng Thực Nghiệm & So Sánh 5 Mô Hình (Benchmark Evaluation Table) */}
-        <div className="pt-1">
-          <div className="flex items-center justify-between mb-2.5">
-            <button
-              type="button"
-              onClick={() => setShowBenchmark((prev) => !prev)}
-              className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 hover:text-indigo-600 cursor-pointer"
-            >
-              <BarChart3 className="w-4 h-4 text-indigo-600" />
-              <span>
-                {showBenchmark ? 'Ẩn' : 'Hiện'} Bảng Đánh Giá Thực Nghiệm 5 Mô Hình (Precision@5, Recall@5, F1, NDCG@5)
-              </span>
-            </button>
-            <span className="text-[11px] text-slate-500">
-              Nhấp vào tên mô hình trong bảng để chuyển đổi trực tiếp
-            </span>
-          </div>
-
-          {showBenchmark && (
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-900 text-white">
-                    <th className="py-2.5 px-3.5 font-semibold">Mô hình Gợi ý (Recommendation Model)</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">Precision@5</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">Recall@5</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">F1-Score</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">NDCG@5</th>
-                    <th className="py-2.5 px-3 font-semibold text-right">Điểm TB</th>
-                    <th className="py-2.5 px-3.5 font-semibold text-right">Thời gian</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {benchmarkMetrics.map((m) => {
-                    const isSelected = m.modelId === selectedModel;
-                    return (
-                      <tr
-                        key={m.modelId}
-                        onClick={() => handleSelectModel(m.modelId)}
-                        className={`cursor-pointer transition-colors ${
-                          isSelected
-                            ? 'bg-indigo-50/90 font-semibold text-indigo-950'
-                            : 'hover:bg-slate-50 text-slate-700'
-                        }`}
-                      >
-                        <td className="py-2.5 px-3.5 flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              isSelected ? 'bg-indigo-600' : 'bg-slate-300'
-                            }`}
-                          />
-                          <span>{m.modelName}</span>
-                          {m.modelId === 'hybrid-ensemble' && (
-                            <span className="px-1.5 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 font-bold">
-                              Tốt nhất
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{m.precisionAt5}%</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{m.recallAt5}%</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums font-bold text-indigo-700">
-                          {m.f1Score}%
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{m.ndcgAt5}%</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{m.meanScore}/100</td>
-                        <td className="py-2.5 px-3.5 text-right tabular-nums text-slate-500">
-                          {m.executionTimeMs} ms
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* 3. Chọn Mô Hình & Nhập Mục Tiêu Đọc Sách */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-        {/* Selector 5 Mô hình */}
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <label className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider">
+      {/* KHỐI DÀNH CHO QUẢN TRỊ / GIẢNG VIÊN KIỂM THỬ MÔ HÌNH (Chỉ hiển thị cho Quản trị viên/Giảng viên khi bật) */}
+      {isTeacherOrAdmin && isAdminMode && (
+        <div className="space-y-6 animate-fade-in p-4 sm:p-6 bg-slate-50/80 dark:bg-slate-900/40 rounded-3xl border border-indigo-200/60 dark:border-indigo-900/50">
+          <div className="flex items-center justify-between pb-2 border-b border-indigo-100 dark:border-indigo-950">
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
               <Cpu className="w-4 h-4" />
-              <span>Chọn Thuật Toán / Mô Hình Chạy Gợi Ý (5 Models)</span>
-            </label>
-            <code className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-mono">
-              Công thức: {activeModelMeta.formula}
-            </code>
+              <span>Khu vực Báo cáo Đồ án: Trạng thái Corpus, Vector TF-IDF &amp; Đối sánh 5 Mô hình</span>
+            </div>
+            <span className="text-xs text-slate-500 font-medium">Chỉ hiển thị khi quản trị viên / giảng viên bật</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
-            {AVAILABLE_MODELS.map((model) => {
-              const active = selectedModel === model.id;
-              return (
+          {/* 2. Trung tâm Quản lý Dữ liệu & Huấn luyện Model (Chạy thêm dữ liệu + Chạy thêm model) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-xs space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                  <Database className="w-4 h-4" />
+                  <span>Trạng thái Tập dữ liệu &amp; Vector hóa Thời gian thực</span>
+                </div>
+                <h2 className="font-serif text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100">
+                  Kho Dữ Liệu Huấn Luyện &amp; Kiểm Thử Mô Hình
+                </h2>
+              </div>
+
+              {/* Nút thao tác nạp thêm dữ liệu */}
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
-                  key={model.id}
                   type="button"
-                  onClick={() => handleSelectModel(model.id)}
-                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                    active
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
-                      : 'bg-slate-50/70 hover:bg-white text-slate-800 border-slate-200 hover:border-indigo-500'
-                  }`}
+                  onClick={handleFetchMoreGoogleBooks}
+                  disabled={isFetchingData}
+                  className="px-3.5 py-2 min-h-[40px] rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
                 >
-                  <div className="flex items-center justify-between gap-1">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        active
-                          ? 'bg-indigo-500/30 text-indigo-200'
-                          : 'bg-indigo-50 text-indigo-700'
-                      }`}
-                    >
-                      {model.badge}
-                    </span>
-                  </div>
-                  <p className="font-bold text-xs sm:text-sm leading-snug mt-1">
-                    {model.shortName}
-                  </p>
-                  <p
-                    className={`text-[11px] line-clamp-2 leading-normal ${
-                      active ? 'text-slate-300' : 'text-slate-500'
+                  {isFetchingData ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <PlusCircle className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    Chạy thêm dữ liệu Google Books ({EXTRA_QUERY_BATCHES[batchIndex % EXTRA_QUERY_BATCHES.length].label.split(':')[0]})
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleLoadExtendedDataset}
+                  className="px-3.5 py-2 min-h-[40px] rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Layers className="w-3.5 h-3.5 text-indigo-300" />
+                  <span>+ Nạp Dataset Mở Rộng (8 sách chuẩn)</span>
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.json"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-2 min-h-[40px] rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:text-indigo-600 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Nhập file CSV / JSON</span>
+                </button>
+
+                <a
+                  href="/dataset/books_dataset.csv"
+                  download="books_dataset.csv"
+                  className="px-3 py-2 min-h-[40px] rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-all inline-flex items-center gap-1.5"
+                  title="Tải về bộ dữ liệu mẫu chuẩn CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Dataset CSV mẫu</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Thông báo khi nạp dữ liệu thành công */}
+            {dataStatusMsg && (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{dataStatusMsg}</span>
+              </div>
+            )}
+
+            {/* Chỉ số thống kê Corpus */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Tổng số đầu sách</span>
+                <span className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+                  {corpusStats.totalBooks} cuốn
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Không gian TF-IDF</span>
+                <span className="text-lg font-extrabold text-indigo-600 dark:text-indigo-400 tabular-nums">
+                  {corpusStats.vocabularySize.toLocaleString('vi-VN')} chiều
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Độ dài TB (BM25 avgdl)</span>
+                <span className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+                  {corpusStats.avgDocLength} tokens
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Ma trận User-Item CF</span>
+                <span className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+                  {corpusStats.totalUserInteractions} ratings
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Phân bố Việt / Quốc tế</span>
+                <span className="text-lg font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">
+                  {corpusStats.vietnamBooks} / {corpusStats.worldBooks}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-900">
+                <span className="text-[11px] text-indigo-700 dark:text-indigo-300 font-medium block">Thời gian chạy Model</span>
+                <span className="text-lg font-extrabold text-indigo-700 dark:text-indigo-300 tabular-nums">
+                  {executionTimeMs} ms
+                </span>
+              </div>
+            </div>
+
+            {/* Bảng Thực Nghiệm & So Sánh 5 Mô Hình (Benchmark Evaluation Table) */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between mb-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowBenchmark((prev) => !prev)}
+                  className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 hover:text-indigo-600 cursor-pointer"
+                >
+                  <BarChart3 className="w-4 h-4 text-indigo-600" />
+                  <span>
+                    {showBenchmark ? 'Ẩn' : 'Hiện'} Bảng Đánh Giá Thực Nghiệm 5 Mô Hình (Precision@5, Recall@5, F1, NDCG@5)
+                  </span>
+                </button>
+                <span className="text-[11px] text-slate-500">
+                  Nhấp vào tên mô hình trong bảng để chuyển đổi trực tiếp
+                </span>
+              </div>
+
+              {showBenchmark && (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-900 text-white">
+                        <th className="py-2.5 px-3.5 font-semibold">Mô hình Gợi ý (Recommendation Model)</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">Precision@5</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">Recall@5</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">F1-Score</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">NDCG@5</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">Điểm TB</th>
+                        <th className="py-2.5 px-3.5 font-semibold text-right">Thời gian</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {benchmarkMetrics.map((m) => {
+                        const isSelected = m.modelId === selectedModel;
+                        return (
+                          <tr
+                            key={m.modelId}
+                            onClick={() => handleSelectModel(m.modelId)}
+                            className={`cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-indigo-50/90 dark:bg-indigo-950/60 font-semibold text-indigo-950 dark:text-indigo-200'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <td className="py-2.5 px-3.5 flex items-center gap-2">
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  isSelected ? 'bg-indigo-600' : 'bg-slate-300'
+                                }`}
+                              />
+                              <span>{m.modelName}</span>
+                              {m.modelId === 'hybrid-ensemble' && (
+                                <span className="px-1.5 py-0.5 text-[10px] rounded bg-indigo-100 text-indigo-700 font-bold">
+                                  Tốt nhất
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums">{m.precisionAt5}%</td>
+                            <td className="py-2.5 px-3 text-right tabular-nums">{m.recallAt5}%</td>
+                            <td className="py-2.5 px-3 text-right tabular-nums font-bold text-indigo-700 dark:text-indigo-400">
+                              {m.f1Score}%
+                            </td>
+                            <td className="py-2.5 px-3 text-right tabular-nums">{m.ndcgAt5}%</td>
+                            <td className="py-2.5 px-3 text-right tabular-nums">{m.meanScore}/100</td>
+                            <td className="py-2.5 px-3.5 text-right tabular-nums text-slate-500">
+                              {m.executionTimeMs} ms
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Selector 5 Mô hình (Dành cho Giảng viên / Quản trị viên đối soát giải thuật) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                <Cpu className="w-4 h-4" />
+                <span>Chọn Thuật Toán / Mô Hình Chạy Gợi Ý (5 Models)</span>
+              </label>
+              <code className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                Công thức: {activeModelMeta.formula}
+              </code>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+              {AVAILABLE_MODELS.map((model) => {
+                const active = selectedModel === model.id;
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    onClick={() => handleSelectModel(model.id)}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                      active
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                        : 'bg-slate-50/70 hover:bg-white text-slate-800 border-slate-200 hover:border-indigo-500'
                     }`}
                   >
-                    {model.description}
-                  </p>
-                </button>
-              );
-            })}
+                    <div className="flex items-center justify-between gap-1">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          active
+                            ? 'bg-indigo-500/30 text-indigo-200'
+                            : 'bg-indigo-50 text-indigo-700'
+                        }`}
+                      >
+                        {model.badge}
+                      </span>
+                    </div>
+                    <p className="font-bold text-xs sm:text-sm leading-snug mt-1">
+                      {model.shortName}
+                    </p>
+                    <p
+                      className={`text-[11px] line-clamp-2 leading-normal ${
+                        active ? 'text-slate-300' : 'text-slate-500'
+                      }`}
+                    >
+                      {model.description}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
+      )}
+
+      {/* 3. Nhập Mục Tiêu Đọc Sách & Khám Phá */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
 
         {/* Form mục tiêu & bộ lọc */}
         <form onSubmit={handleSubmit} className="space-y-6 pt-4 border-t border-slate-200">
@@ -530,21 +573,21 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
               >
                 Dung lượng sách mong muốn
               </label>
-              <select
+              <CustomSelect
                 id="goal-length-filter"
                 value={preferredLength}
-                onChange={(e) => {
-                  const val = e.target.value as 'all' | 'short' | 'medium' | 'long';
+                onChange={(selected) => {
+                  const val = selected as 'all' | 'short' | 'medium' | 'long';
                   setPreferredLength(val);
                   runRecommendation(goalQuery, selectedGoalId, val, selectedStyle, selectedModel);
                 }}
-                className="w-full px-3 py-2 min-h-[44px] bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 cursor-pointer"
-              >
-                <option value="all">Mọi độ dài</option>
-                <option value="short">Ngắn gọn (Dưới 220 trang - đọc nhanh)</option>
-                <option value="medium">Vừa phải (200 - 420 trang - tiêu chuẩn)</option>
-                <option value="long">Dày dặn (Trên 400 trang - chuyên sâu)</option>
-              </select>
+                options={[
+                  { value: 'all', label: 'Mọi độ dài' },
+                  { value: 'short', label: 'Ngắn gọn (Dưới 220 trang - đọc nhanh)' },
+                  { value: 'medium', label: 'Vừa phải (200 - 420 trang - tiêu chuẩn)' },
+                  { value: 'long', label: 'Dày dặn (Trên 400 trang - chuyên sâu)' },
+                ]}
+              />
             </div>
 
             <div>
@@ -554,22 +597,22 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
               >
                 Phong cách tiếp cận
               </label>
-              <select
+              <CustomSelect
                 id="goal-style-filter"
                 value={selectedStyle}
-                onChange={(e) => {
-                  const val = e.target.value as BookStyle | 'all';
+                onChange={(selected) => {
+                  const val = selected as BookStyle | 'all';
                   setSelectedStyle(val);
                   runRecommendation(goalQuery, selectedGoalId, preferredLength, val, selectedModel);
                 }}
-                className="w-full px-3 py-2 min-h-[44px] bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 cursor-pointer"
-              >
-                <option value="all">Tất cả phong cách</option>
-                <option value="realistic">Thực chiến, rõ ràng, áp dụng ngay</option>
-                <option value="subtle">Nhẹ nhàng, thấu cảm, tinh tế</option>
-                <option value="philosophical">Hàn lâm, triết luận, tư duy sâu</option>
-                <option value="nostalgic">Truyền cảm hứng &amp; sâu lắng</option>
-              </select>
+                options={[
+                  { value: 'all', label: 'Tất cả phong cách' },
+                  { value: 'realistic', label: 'Thực chiến, rõ ràng, áp dụng ngay' },
+                  { value: 'subtle', label: 'Nhẹ nhàng, thấu cảm, tinh tế' },
+                  { value: 'philosophical', label: 'Hàn lâm, triết luận, tư duy sâu' },
+                  { value: 'nostalgic', label: 'Truyền cảm hứng & sâu lắng' },
+                ]}
+              />
             </div>
           </div>
 
@@ -695,11 +738,14 @@ export const GoalFinderView: React.FC<GoalFinderViewProps> = ({
         </div>
 
         {isLoading ? (
-          <div className="py-20 text-center text-slate-500">
-            <div className="inline-block w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
-            <p className="text-sm font-medium">
-              Đang chạy mô hình {activeModelMeta.shortName} trên {books.length} cuốn sách...
-            </p>
+          <div
+            aria-busy="true"
+            aria-label={`Đang chạy mô hình ${activeModelMeta.shortName} trên ${books.length} cuốn sách`}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+          >
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <BookCardSkeleton key={`goal-skeleton-${idx}`} />
+            ))}
           </div>
         ) : resultBooks.length > 0 ? (
           <BookRowGrid

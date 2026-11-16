@@ -7,7 +7,7 @@ import { formatReadingTime } from '../utils/bookRecommender';
 interface BookSwitcherWidgetProps {
   books: Book[];
   onSelectBook: (book: Book) => void;
-  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
 }
 
 /** Chọn ngẫu nhiên một chỉ số (khác `exclude` nếu có thể). */

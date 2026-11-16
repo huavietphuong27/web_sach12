@@ -60,6 +60,15 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
     messagesRef.current = messages;
   }, [messages]);
 
+  // Luôn nạp lại tin nhắn mới nhất nếu vừa được chuyển tiếp từ bong bóng chat
+  useEffect(() => {
+    const saved = advisorStore.messages();
+    if (saved && saved.length > 0) {
+      setMessages(saved);
+      messagesRef.current = saved;
+    }
+  }, []);
+
   useEffect(() => {
     if (messages.length > 1 || loading) {
       endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -117,6 +126,11 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
   const handleResetChat = () => {
     save([WELCOME]);
     setInput('');
+    try {
+      localStorage.removeItem('bookmind_floating_chat_history_v1');
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -167,14 +181,14 @@ export const AdvisorView: React.FC<AdvisorViewProps> = ({
                 </div>
               )}
 
-              {m.turn?.analysis && (
+              {(m.turn?.analysis || m.text) && (
                 <div className="flex gap-3 max-w-[95%]">
                   <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-slate-900 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Sparkles className="w-4 h-4 text-indigo-200" />
                   </div>
                   <div
                     className="bg-white border border-slate-200 rounded-2xl rounded-tl-xs px-5 py-4 text-sm text-slate-800 leading-relaxed shadow-xs"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(m.turn.analysis) }}
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(m.turn?.analysis || m.text || '') }}
                   />
                 </div>
               )}

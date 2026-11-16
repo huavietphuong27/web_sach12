@@ -1,8 +1,13 @@
-import { UserAccount, UserProfile, ReadingHistoryItem, UserNote } from '../types/auth';
+import { UserAccount, UserProfile, ReadingHistoryItem } from '../types/auth';
 import { Book } from '../types/book';
+import { CURATED_DATASET_BOOKS } from '../data/booksDataset';
+
+const pickSeedBooks = (ids: string[]): Book[] =>
+  CURATED_DATASET_BOOKS.filter((b) => ids.includes(b.id));
 
 const USERS_STORAGE_KEY = 'websach-users-v2';
 const SESSION_STORAGE_KEY = 'websach-current-session-v2';
+const REMEMBERED_EMAIL_KEY = 'websach-remembered-email-v1';
 
 // Hàm băm mật khẩu đơn giản cho môi trường client (Client-side mock hash)
 function simpleHash(str: string): string {
@@ -30,6 +35,7 @@ const DEMO_USERS: Record<string, UserAccount> = {
     id: 'u-demo-01',
     email: 'demo@bookmind.vn',
     name: 'Độc Giả Trải Nghiệm',
+    role: 'user',
     avatar: 'avatar-1',
     bio: 'Đam mê đọc sách phát triển bản thân, công nghệ AI và tâm lý học ứng dụng.',
     favoriteGenres: ['Kỹ năng & Phát triển bản thân', 'Công nghệ & Trí tuệ nhân tạo', 'Tâm lý & Chữa lành'],
@@ -60,6 +66,285 @@ const DEMO_USERS: Record<string, UserAccount> = {
       },
     ],
   },
+  'admin@bookmind.vn': {
+    id: 'u-admin-01',
+    email: 'admin@bookmind.vn',
+    name: 'Quản Trị Viên (Giảng Viên)',
+    role: 'admin',
+    avatar: 'avatar-2',
+    bio: 'Tài khoản quản trị viên & kiểm thử mô hình gợi ý AI phục vụ đồ án.',
+    favoriteGenres: ['Công nghệ & Trí tuệ nhân tạo', 'Kỹ năng & Phát triển bản thân'],
+    preferredStyle: 'realistic',
+    createdAt: '2026-11-10T08:00:00.000Z',
+    passwordHash: simpleHash('admin123'),
+    favorites: [],
+    ratings: {},
+    notes: {},
+    history: [],
+  },
+  'tamly@bookmind.vn': {
+    id: 'u-tamly-01',
+    email: 'tamly@bookmind.vn',
+    name: 'Minh Tâm Lý',
+    role: 'user',
+    avatar: 'avatar-6',
+    bio: 'Yêu thích sách chữa lành tâm hồn, tâm lý học ứng dụng, thiền định và văn học sâu sắc.',
+    favoriteGenres: ['Tâm lý & Chữa lành', 'Tư duy & Tâm lý học', 'Văn học & Triết lý sống', 'Tâm lý & Xã hội'],
+    preferredStyle: 'subtle',
+    createdAt: '2026-11-05T08:00:00.000Z',
+    passwordHash: simpleHash('123456'),
+    favorites: pickSeedBooks([
+      'ds-hieu-ve-trai-tim',
+      'ds-lam-nhu-choi',
+      'ds-can-bang-cam-xuc',
+      'ds-dai-duong-den',
+      'ds-thinking-fast-slow',
+      'ds-nha-gia-kim',
+      'ds-nguoi-dua-dieu',
+      'ds-mat-biec',
+    ]),
+    ratings: {
+      'ds-hieu-ve-trai-tim': 5,
+      'ds-lam-nhu-choi': 5,
+      'ds-can-bang-cam-xuc': 5,
+      'ds-dai-duong-den': 5,
+      'ds-thinking-fast-slow': 4,
+      'ds-nha-gia-kim': 5,
+      'ds-nguoi-dua-dieu': 5,
+      'ds-mat-biec': 4,
+      'ds-dung-viec': 4,
+      'ds-nguyen-ly-80-20': 2,
+      'ds-nguoi-giau-co-nhat-babylon': 2,
+    },
+    notes: {
+      'ds-hieu-ve-trai-tim': {
+        bookId: 'ds-hieu-ve-trai-tim',
+        bookTitle: 'Hiểu Về Trái Tim',
+        content: 'Nhận diện cảm xúc giận dữ và khổ đau để chuyển hóa thành bình an nội tại.',
+        updatedAt: '2026-11-15T10:15:00.000Z',
+      },
+      'ds-can-bang-cam-xuc': {
+        bookId: 'ds-can-bang-cam-xuc',
+        bookTitle: 'Cân Bằng Cảm Xúc, Cả Lúc Bão Giông',
+        content: 'Học cách giữ tâm vững vàng trước áp lực công việc và các biến cố bất ngờ.',
+        updatedAt: '2026-11-14T20:00:00.000Z',
+      },
+      'ds-lam-nhu-choi': {
+        bookId: 'ds-lam-nhu-choi',
+        bookTitle: 'Làm Như Chơi',
+        content: 'Làm việc hết mình nhưng tâm thế nhẹ nhàng, không dính mắc vào kết quả.',
+        updatedAt: '2026-11-14T09:30:00.000Z',
+      },
+      'ds-dai-duong-den': {
+        bookId: 'ds-dai-duong-den',
+        bookTitle: 'Đại Dương Đen: Những Câu Chuyện Từ Thế Giới Của Người Trầm Cảm',
+        content: 'Sự lắng nghe không phán xét là liều thuốc quý giá nhất với người đang tổn thương.',
+        updatedAt: '2026-11-13T16:40:00.000Z',
+      },
+      'ds-nha-gia-kim': {
+        bookId: 'ds-nha-gia-kim',
+        bookTitle: 'Nhà Giả Kim',
+        content: 'Khi ta thực sự khao khát điều gì, cả vũ trụ sẽ hợp lực giúp ta đạt được.',
+        updatedAt: '2026-11-12T21:10:00.000Z',
+      },
+      'ds-nguoi-dua-dieu': {
+        bookId: 'ds-nguoi-dua-dieu',
+        bookTitle: 'Người Đua Diều',
+        content: 'Câu chuyện day dứt về tình bạn, sự chuộc lỗi và sức mạnh của lòng trắc ẩn.',
+        updatedAt: '2026-11-11T19:00:00.000Z',
+      },
+    },
+    history: [
+      {
+        bookId: 'ds-hieu-ve-trai-tim',
+        bookTitle: 'Hiểu Về Trái Tim',
+        bookAuthor: 'Minh Niệm',
+        genre: 'Tâm lý & Chữa lành',
+        viewedAt: '2026-11-16T09:30:00.000Z',
+      },
+      {
+        bookId: 'ds-lam-nhu-choi',
+        bookTitle: 'Làm Như Chơi',
+        bookAuthor: 'Minh Niệm',
+        genre: 'Tâm lý & Chữa lành',
+        viewedAt: '2026-11-15T21:15:00.000Z',
+      },
+      {
+        bookId: 'ds-can-bang-cam-xuc',
+        bookTitle: 'Cân Bằng Cảm Xúc, Cả Lúc Bão Giông',
+        bookAuthor: 'Richard Nicholls',
+        genre: 'Tâm lý & Chữa lành',
+        viewedAt: '2026-11-15T15:30:00.000Z',
+      },
+      {
+        bookId: 'ds-dai-duong-den',
+        bookTitle: 'Đại Dương Đen: Những Câu Chuyện Từ Thế Giới Của Người Trầm Cảm',
+        bookAuthor: 'Đặng Hoàng Giang',
+        genre: 'Tâm lý & Xã hội',
+        viewedAt: '2026-11-14T18:45:00.000Z',
+      },
+      {
+        bookId: 'ds-thinking-fast-slow',
+        bookTitle: 'Tư Duy Nhanh Và Chậm',
+        bookAuthor: 'Daniel Kahneman',
+        genre: 'Tư duy & Tâm lý học',
+        viewedAt: '2026-11-14T11:20:00.000Z',
+      },
+      {
+        bookId: 'ds-nha-gia-kim',
+        bookTitle: 'Nhà Giả Kim',
+        bookAuthor: 'Paulo Coelho',
+        genre: 'Văn học & Triết lý sống',
+        viewedAt: '2026-11-13T20:10:00.000Z',
+      },
+      {
+        bookId: 'ds-nguoi-dua-dieu',
+        bookTitle: 'Người Đua Diều',
+        bookAuthor: 'Khaled Hosseini',
+        genre: 'Văn học & Tiểu thuyết',
+        viewedAt: '2026-11-12T17:05:00.000Z',
+      },
+      {
+        bookId: 'ds-mat-biec',
+        bookTitle: 'Mắt Biếc',
+        bookAuthor: 'Nguyễn Nhật Ánh',
+        genre: 'Văn học Việt Nam',
+        viewedAt: '2026-11-11T14:50:00.000Z',
+      },
+    ],
+  },
+  'congnghe@bookmind.vn': {
+    id: 'u-congnghe-01',
+    email: 'congnghe@bookmind.vn',
+    name: 'Hùng Công Nghệ',
+    role: 'user',
+    avatar: 'avatar-3',
+    bio: 'Kỹ sư phần mềm quan tâm sâu về AI, kiến trúc hệ thống, khởi nghiệp công nghệ và tài chính.',
+    favoriteGenres: ['Công nghệ & Trí tuệ nhân tạo', 'Công nghệ & Kỹ thuật phần mềm', 'Kinh doanh & Công nghệ', 'Kinh doanh & Tài chính'],
+    preferredStyle: 'realistic',
+    createdAt: '2026-11-05T08:30:00.000Z',
+    passwordHash: simpleHash('123456'),
+    favorites: pickSeedBooks([
+      'ds-ai-2041',
+      'ds-clean-code',
+      'ds-data-science-business',
+      'ds-nexus-harari',
+      'ds-zero-to-one',
+      'ds-lean-startup',
+      'ds-psychology-of-money',
+      'ds-deep-work',
+    ]),
+    ratings: {
+      'ds-ai-2041': 5,
+      'ds-clean-code': 5,
+      'ds-data-science-business': 5,
+      'ds-nexus-harari': 5,
+      'ds-zero-to-one': 5,
+      'ds-lean-startup': 4,
+      'ds-psychology-of-money': 5,
+      'ds-deep-work': 5,
+      'ds-nguyen-ly-80-20': 4,
+      'ds-nghe-thuat-tu-duy-ranh-mach': 4,
+      'ds-mat-biec': 2,
+      'ds-lam-nhu-choi': 2,
+    },
+    notes: {
+      'ds-ai-2041': {
+        bookId: 'ds-ai-2041',
+        bookTitle: 'AI 2041: 10 Viễn Cảnh Cho Tương Lai',
+        content: 'Góc nhìn thực tế về cách Deep Learning và AI thay đổi thị trường lao động & y tế.',
+        updatedAt: '2026-11-16T08:30:00.000Z',
+      },
+      'ds-clean-code': {
+        bookId: 'ds-clean-code',
+        bookTitle: 'Clean Code: Mã Sạch Và Con Đường Trở Thành Lập Trình Viên Giỏi',
+        content: 'Code được đọc nhiều hơn viết — đặt tên biến rõ ràng và hàm ngắn gọn đơn nhiệm.',
+        updatedAt: '2026-11-15T11:20:00.000Z',
+      },
+      'ds-data-science-business': {
+        bookId: 'ds-data-science-business',
+        bookTitle: 'Khoa Học Dữ Liệu Trong Kinh Doanh',
+        content: 'Biến dữ liệu hành vi thành lợi thế cạnh tranh thông qua mô hình phân loại và dự đoán.',
+        updatedAt: '2026-11-14T22:15:00.000Z',
+      },
+      'ds-zero-to-one': {
+        bookId: 'ds-zero-to-one',
+        bookTitle: 'Không Đến Một (Zero to One)',
+        content: 'Cạnh tranh giết chết lợi nhuận; startup công nghệ cần tạo ra giá trị độc quyền mới từ 0 đến 1.',
+        updatedAt: '2026-11-13T19:45:00.000Z',
+      },
+      'ds-deep-work': {
+        bookId: 'ds-deep-work',
+        bookTitle: 'Làm Ra Làm, Chơi Ra Chơi (Deep Work)',
+        content: 'Tắt thông báo, dành 2-3 giờ tập trung sâu mỗi sáng để giải quyết bài toán kiến trúc khó.',
+        updatedAt: '2026-11-12T15:00:00.000Z',
+      },
+      'ds-psychology-of-money': {
+        bookId: 'ds-psychology-of-money',
+        bookTitle: 'Tâm Lý Học Về Tiền',
+        content: 'Lãi kép và biên độ an toàn quan trọng hơn việc đoán đỉnh đáy ngắn hạn.',
+        updatedAt: '2026-11-11T10:30:00.000Z',
+      },
+    },
+    history: [
+      {
+        bookId: 'ds-ai-2041',
+        bookTitle: 'AI 2041: 10 Viễn Cảnh Cho Tương Lai',
+        bookAuthor: 'Kai-Fu Lee, Chen Qiufan',
+        genre: 'Công nghệ & Trí tuệ nhân tạo',
+        viewedAt: '2026-11-16T10:00:00.000Z',
+      },
+      {
+        bookId: 'ds-clean-code',
+        bookTitle: 'Clean Code: Mã Sạch Và Con Đường Trở Thành Lập Trình Viên Giỏi',
+        bookAuthor: 'Robert C. Martin',
+        genre: 'Công nghệ & Kỹ thuật phần mềm',
+        viewedAt: '2026-11-15T19:10:00.000Z',
+      },
+      {
+        bookId: 'ds-data-science-business',
+        bookTitle: 'Khoa Học Dữ Liệu Trong Kinh Doanh',
+        bookAuthor: 'Foster Provost, Tom Fawcett',
+        genre: 'Công nghệ & Trí tuệ nhân tạo',
+        viewedAt: '2026-11-15T14:20:00.000Z',
+      },
+      {
+        bookId: 'ds-nexus-harari',
+        bookTitle: 'Nexus: Lược Sử Của Những Mạng Lưới Thông Tin Từ Thời Đồ Đá Đến AI',
+        bookAuthor: 'Yuval Noah Harari',
+        genre: 'Công nghệ & Triết học',
+        viewedAt: '2026-11-14T21:00:00.000Z',
+      },
+      {
+        bookId: 'ds-zero-to-one',
+        bookTitle: 'Không Đến Một (Zero to One)',
+        bookAuthor: 'Peter Thiel, Blake Masters',
+        genre: 'Kinh doanh & Công nghệ',
+        viewedAt: '2026-11-14T11:30:00.000Z',
+      },
+      {
+        bookId: 'ds-lean-startup',
+        bookTitle: 'Khởi Nghiệp Tinh Gọn',
+        bookAuthor: 'Eric Ries',
+        genre: 'Kinh doanh & Khởi nghiệp',
+        viewedAt: '2026-11-13T16:40:00.000Z',
+      },
+      {
+        bookId: 'ds-psychology-of-money',
+        bookTitle: 'Tâm Lý Học Về Tiền',
+        bookAuthor: 'Morgan Housel',
+        genre: 'Kinh doanh & Tài chính',
+        viewedAt: '2026-11-12T09:15:00.000Z',
+      },
+      {
+        bookId: 'ds-deep-work',
+        bookTitle: 'Làm Ra Làm, Chơi Ra Chơi (Deep Work)',
+        bookAuthor: 'Cal Newport',
+        genre: 'Kỹ năng & Hiệu suất',
+        viewedAt: '2026-11-11T17:50:00.000Z',
+      },
+    ],
+  },
 };
 
 export class AuthService {
@@ -71,7 +356,9 @@ export class AuthService {
         window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEMO_USERS));
         return { ...DEMO_USERS };
       }
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Đảm bảo các tài khoản mẫu hệ thống luôn tồn tại
+      return { ...DEMO_USERS, ...parsed };
     } catch {
       return { ...DEMO_USERS };
     }
@@ -89,7 +376,9 @@ export class AuthService {
   public static getCurrentSession(): UserAccount | null {
     if (typeof window === 'undefined') return null;
     try {
-      const email = window.localStorage.getItem(SESSION_STORAGE_KEY);
+      const email =
+        window.localStorage.getItem(SESSION_STORAGE_KEY) ||
+        window.sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (!email) return null;
       const users = this.loadUsers();
       return users[email.toLowerCase()] || null;
@@ -98,12 +387,31 @@ export class AuthService {
     }
   }
 
-  public static setSession(email: string | null): void {
+  public static getRememberedEmail(): string {
+    if (typeof window === 'undefined') return '';
+    try {
+      return window.localStorage.getItem(REMEMBERED_EMAIL_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  public static setSession(email: string | null, remember = true): void {
     if (typeof window === 'undefined') return;
     if (email) {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, email.toLowerCase());
+      const cleanEmail = email.toLowerCase();
+      if (remember) {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, cleanEmail);
+        window.localStorage.setItem(REMEMBERED_EMAIL_KEY, cleanEmail);
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      } else {
+        window.sessionStorage.setItem(SESSION_STORAGE_KEY, cleanEmail);
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+        window.localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      }
     } else {
       window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
   }
 
@@ -154,7 +462,8 @@ export class AuthService {
 
   public static login(
     email: string,
-    password: string
+    password: string,
+    remember = true
   ): { success: boolean; user?: UserAccount; error?: string } {
     const cleanEmail = email.trim().toLowerCase();
     const users = this.loadUsers();
@@ -168,7 +477,7 @@ export class AuthService {
       return { success: false, error: 'Mật khẩu không chính xác. Vui lòng thử lại.' };
     }
 
-    this.setSession(cleanEmail);
+    this.setSession(cleanEmail, remember);
     return { success: true, user };
   }
 

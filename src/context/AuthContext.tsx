@@ -14,7 +14,7 @@ interface AuthContextType {
   deleteBookNote: (bookId: string) => void;
   addReadingHistory: (book: Book) => void;
   clearHistory: () => void;
-  login: (email: string, password: string) => { success: boolean; error?: string };
+  login: (email: string, password: string, remember?: boolean) => { success: boolean; error?: string };
   register: (email: string, password: string, name: string, avatar?: string) => { success: boolean; error?: string };
   changePassword: (oldPass: string, newPass: string) => { success: boolean; error?: string };
   resetPassword: (email: string, newPass: string) => { success: boolean; error?: string };
@@ -139,8 +139,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser]);
 
   const login = useCallback(
-    (email: string, pass: string) => {
-      const res = AuthService.login(email, pass);
+    (email: string, pass: string, remember = true) => {
+      const res = AuthService.login(email, pass, remember);
       if (res.success && res.user) {
         // Tự động gộp guestFavorites vào tài khoản nếu user chưa có
         if (guestFavorites.length > 0) {

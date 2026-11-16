@@ -1,5 +1,5 @@
 // src/services/userPreferenceEngine.ts - Bộ Tổng Hợp Sở Thích Động Kèm Trọng Số Thời Gian (Dynamic User Preference Engine)
-import { UserBehaviorEvent, UserPreferenceSummary } from '../types/events';
+import { UserPreferenceSummary } from '../types/events';
 import { eventTracker } from './eventTracker';
 
 const PREF_CACHE_PREFIX = 'bookmind_user_pref_';

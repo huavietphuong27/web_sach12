@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BookOpen,
   Compass,
@@ -7,13 +7,15 @@ import {
   Sparkles,
   Menu,
   X,
-  ArrowUpRight,
   Info,
   Bookmark,
   User,
   LogIn,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { AVATAR_OPTIONS } from '../services/authService';
 
 interface NavbarProps {
@@ -32,9 +34,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { currentUser, isAuthenticated, openAuthModal, openProfileModal } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen]);
 
   const userAvatar = AVATAR_OPTIONS.find((a) => a.id === currentUser?.avatar) || AVATAR_OPTIONS[0];
 
+  // Danh mục điều hướng nội dung chính (desktop & mobile)
   const navItems = [
     { id: 'home', label: 'Trang Chủ', icon: BookOpen },
     { id: 'advisor', label: 'AI Cố Vấn', icon: Sparkles, highlight: true },
@@ -42,12 +57,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'catalog', label: 'Kho Sách', icon: Library },
     { id: 'explore', label: 'Khám Phá', icon: Globe },
     { id: 'about', label: 'Giới Thiệu', icon: Info },
-    {
-      id: 'auth',
-      label: isAuthenticated ? 'Tài Khoản & Dữ Liệu' : 'Đăng Nhập / Đăng Ký',
-      icon: User,
-      highlight: !isAuthenticated,
-    },
   ];
 
   const handleNavClick = (routeId: string) => {
@@ -56,36 +65,37 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs transition-colors">
+    <header className="sticky top-0 z-30 bg-surface/90 backdrop-blur-md border-b border-border shadow-xs transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20 gap-4 md:gap-8">
+        <div className="flex items-center justify-between h-16 md:h-18 gap-3 lg:gap-4">
           {/* Brand Wordmark */}
           <button
+            type="button"
             onClick={() => handleNavClick('home')}
-            className="flex items-center gap-3 text-left group rounded-xl p-1 -ml-1 transition-all cursor-pointer min-h-[44px]"
+            className="flex items-center gap-2.5 text-left group rounded-xl p-1 -ml-1 transition-all cursor-pointer shrink-0"
             aria-label="Về trang chủ BookMind AI"
           >
-            <span className="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-900 via-indigo-950 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform duration-200">
-              <Sparkles className="w-5 h-5 text-indigo-300" />
+            <span className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-tr from-slate-900 via-indigo-950 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform duration-200">
+              <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-indigo-300" />
             </span>
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="font-serif text-lg md:text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap group-hover:text-indigo-600 transition-colors">
-                  BookMind <span className="text-indigo-600">AI</span>
+                <span className="font-serif text-base md:text-lg font-bold tracking-tight text-ink whitespace-nowrap group-hover:text-accent transition-colors">
+                  BookMind <span className="text-accent">AI</span>
                 </span>
-                <span className="px-1.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/60 text-[10px] font-bold text-indigo-700 tracking-wide">
+                <span className="px-1.5 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-[10px] font-bold text-accent tracking-wide">
                   PRO
                 </span>
               </div>
-              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+              <span className="text-[10.5px] text-ink-muted font-medium hidden xl:inline">
                 Trợ lý gợi ý sách thông minh
               </span>
             </div>
           </button>
 
-          {/* Navigation Links */}
+          {/* Navigation Links (Desktop) */}
           <nav
-            className="hidden lg:flex items-center gap-6 md:gap-8 text-sm font-medium text-slate-600"
+            className="hidden lg:flex items-center gap-1 xl:gap-1.5 text-xs xl:text-sm font-medium text-ink-secondary"
             aria-label="Điều hướng chính"
           >
             {navItems.map((item) => {
@@ -94,44 +104,55 @@ export const Navbar: React.FC<NavbarProps> = ({
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => handleNavClick(item.id)}
-                  className={`relative py-2.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer text-sm font-medium min-h-[44px] flex items-center gap-2 ${
+                  className={`relative px-2.5 xl:px-3 py-2 rounded-xl whitespace-nowrap shrink-0 transition-colors cursor-pointer font-medium flex items-center gap-1.5 ${
                     isActive
-                      ? 'text-indigo-600 font-semibold'
-                      : 'hover:text-slate-950'
+                      ? 'bg-accent/10 text-accent font-semibold'
+                      : 'hover:text-ink hover:bg-button-hover'
                   }`}
                   aria-current={isActive ? 'page' : undefined}
                 >
                   <Icon
-                    className={`w-4 h-4 ${
-                      isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-700'
+                    className={`w-3.5 h-3.5 xl:w-4 xl:h-4 ${
+                      isActive ? 'text-accent' : 'text-ink-muted'
                     }`}
                   />
                   <span>{item.label}</span>
                   {item.highlight && !isActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                  )}
-                  {isActive && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
                   )}
                 </button>
               );
             })}
           </nav>
 
-          {/* CTA & Actions */}
-          <div className="hidden sm:flex items-center gap-2.5">
+          {/* CTA & Actions (Desktop) */}
+          <div className="hidden sm:flex items-center gap-1.5 xl:gap-2 shrink-0">
+            {/* Theme toggle */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="h-9 w-9 xl:h-10 xl:w-10 inline-flex items-center justify-center rounded-xl border border-border-strong bg-surface hover:bg-button-hover text-ink transition-colors cursor-pointer shrink-0"
+              aria-label={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+              title={isDark ? 'Chế độ sáng' : 'Chế độ tối'}
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-ink-secondary" />}
+            </button>
+
+            {/* Bookmark button */}
             {onOpenFavorites && (
               <button
                 type="button"
                 onClick={onOpenFavorites}
-                className="px-3.5 py-2 min-h-[40px] rounded-xl border border-slate-200 bg-white hover:border-pink-300 hover:bg-pink-50/50 text-slate-700 hover:text-pink-600 text-xs font-semibold shadow-2xs flex items-center gap-2 transition-all cursor-pointer"
+                className="h-9 xl:h-10 px-2.5 xl:px-3 rounded-xl border border-border-strong bg-surface hover:bg-button-hover text-ink text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                 aria-label="Xem sách yêu thích"
+                title="Danh sách sách yêu thích"
               >
-                <Bookmark className="w-4 h-4 text-pink-500 fill-pink-500" />
-                <span className="hidden md:inline">Yêu thích</span>
+                <Bookmark className="w-3.5 h-3.5 text-pink-500 fill-pink-500" />
+                <span className="hidden xl:inline">Yêu thích</span>
                 {favoritesCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-pink-100 text-pink-700 font-bold text-[10px]">
+                  <span className="px-1.5 py-0.5 rounded-full bg-pink-100 dark:bg-pink-500/20 text-pink-700 dark:text-pink-300 font-bold text-[10px] tabular-nums">
                     {favoritesCount}
                   </span>
                 )}
@@ -143,27 +164,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={openProfileModal}
-                className="px-3 py-1.5 min-h-[40px] rounded-xl border border-indigo-200/80 bg-indigo-50/60 hover:bg-indigo-100/70 text-slate-800 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-2xs group"
+                className="h-9 xl:h-10 px-2.5 xl:px-3 rounded-xl border border-border-strong bg-surface hover:bg-button-hover text-ink text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer group shrink-0"
                 title="Quản lý hồ sơ, lịch sử & dữ liệu cá nhân"
               >
                 <span
-                  className={`w-7 h-7 rounded-lg ${userAvatar.bg} text-white flex items-center justify-center text-sm shadow-xs`}
+                  className={`w-6 h-6 rounded-lg ${userAvatar.bg} text-white flex items-center justify-center text-xs shrink-0`}
                 >
                   {userAvatar.icon}
                 </span>
-                <div className="flex flex-col text-left pr-1 max-w-[120px] truncate">
-                  <span className="font-bold text-slate-900 group-hover:text-indigo-700 truncate">
-                    {currentUser.name}
-                  </span>
-                  <span className="text-[10px] text-indigo-600 font-medium">Hồ sơ &amp; Dữ liệu</span>
-                </div>
+                <span className="font-semibold text-ink group-hover:text-accent truncate max-w-[90px] xl:max-w-[120px]">
+                  {currentUser.name}
+                </span>
               </button>
             ) : (
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => openAuthModal('login')}
-                  className="px-3.5 py-2 min-h-[40px] rounded-xl border border-slate-200 bg-white hover:border-indigo-500 hover:text-indigo-600 text-slate-700 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  className="h-9 xl:h-10 px-3 xl:px-3.5 rounded-xl border border-border-strong bg-surface hover:bg-button-hover text-ink text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Đăng Nhập</span>
@@ -171,30 +189,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={() => openAuthModal('register')}
-                  className="px-3 py-2 min-h-[40px] rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold transition-all cursor-pointer hidden md:inline-flex"
+                  className="h-9 xl:h-10 px-3 rounded-xl bg-surface-subtle hover:bg-button-hover text-ink border border-border text-xs font-semibold transition-colors cursor-pointer hidden 2xl:inline-flex items-center shrink-0"
                 >
                   Đăng Ký
                 </button>
               </div>
             )}
-
-            <button
-              onClick={() => handleNavClick('advisor')}
-              className="px-3.5 py-2 min-h-[40px] rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all cursor-pointer hover:shadow-md active:scale-98"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
-              <span>Hỏi AI</span>
-              <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 hidden xl:inline" />
-            </button>
           </div>
 
-          {/* Mobile menu button */}
-          <div className="lg:hidden flex items-center gap-2">
+          {/* Mobile menu buttons */}
+          <div className="lg:hidden flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="h-9 w-9 flex items-center justify-center rounded-xl border border-border-strong bg-surface hover:bg-button-hover text-ink transition-colors cursor-pointer"
+              aria-label={isDark ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'}
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-ink-secondary" />}
+            </button>
+
             {isAuthenticated && currentUser ? (
               <button
                 type="button"
                 onClick={openProfileModal}
-                className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm shadow-xs cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm cursor-pointer"
                 title="Hồ sơ cá nhân"
               >
                 {userAvatar.icon}
@@ -203,46 +221,62 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => openAuthModal('login')}
-                className="p-2 text-indigo-600 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                className="h-9 px-2.5 rounded-xl border border-border bg-surface text-ink text-xs font-semibold flex items-center gap-1 cursor-pointer"
               >
-                <User className="w-4 h-4" />
-                <span>Đăng nhập</span>
+                <LogIn className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Đăng nhập</span>
               </button>
             )}
 
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-700 hover:text-slate-950 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center text-ink rounded-xl hover:bg-button-hover transition-colors cursor-pointer"
               aria-label={mobileMenuOpen ? 'Đóng bảng điều hướng' : 'Mở bảng điều hướng'}
               aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
         {/* Mobile dropdown navigation */}
         {mobileMenuOpen && (
-          <div className="lg:hidden py-3 border-t border-slate-200 space-y-1 animate-fade-in">
+          <div className="lg:hidden py-3 border-t border-border space-y-1 animate-fade-in">
             {navItems.map((item) => {
               const isActive = currentRoute === item.id;
               const Icon = item.icon;
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => handleNavClick(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-3 min-h-[44px] rounded-xl text-sm text-left font-medium transition-colors cursor-pointer ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left font-medium transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-indigo-50 text-indigo-600 font-bold'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-accent/10 text-accent font-bold'
+                      : 'text-ink-secondary hover:bg-button-hover hover:text-ink'
                   }`}
                   aria-current={isActive ? 'page' : undefined}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-accent' : 'text-ink-muted'}`} />
                   <span>{item.label}</span>
                 </button>
               );
             })}
+
+            {/* Mobile Auth View Link */}
+            <button
+              type="button"
+              onClick={() => handleNavClick('auth')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left font-medium transition-colors cursor-pointer ${
+                currentRoute === 'auth'
+                  ? 'bg-accent/10 text-accent font-bold'
+                  : 'text-ink-secondary hover:bg-button-hover hover:text-ink'
+              }`}
+            >
+              <User className="w-4 h-4 text-ink-muted" />
+              <span>{isAuthenticated ? 'Tài Khoản & Dữ Liệu' : 'Trang Quản Lý Độc Giả'}</span>
+            </button>
 
             {onOpenFavorites && (
               <button
@@ -251,21 +285,39 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onOpenFavorites();
                   setMobileMenuOpen(false);
                 }}
-                className="w-full flex items-center justify-between px-3 py-3 min-h-[44px] rounded-xl text-sm font-medium text-pink-600 hover:bg-pink-50 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-500/10 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <Bookmark className="w-5 h-5 fill-pink-600 text-pink-600" />
+                  <Bookmark className="w-4 h-4 fill-pink-600 text-pink-600" />
                   <span>Sách Yêu Thích</span>
                 </div>
                 {favoritesCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-bold text-xs">
+                  <span className="px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-500/20 text-pink-700 dark:text-pink-300 font-bold text-xs">
                     {favoritesCount}
                   </span>
                 )}
               </button>
             )}
 
-            <div className="pt-2 border-t border-slate-100 px-3">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium text-ink-secondary hover:bg-button-hover hover:text-ink transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                {isDark ? (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                ) : (
+                  <Moon className="w-4 h-4 text-ink-secondary" />
+                )}
+                <span>{isDark ? 'Chuyển sang giao diện Sáng' : 'Chuyển sang giao diện Tối'}</span>
+              </div>
+              <span className="text-xs font-semibold text-accent">
+                {isDark ? 'Tối' : 'Sáng'}
+              </span>
+            </button>
+
+            <div className="pt-2 border-t border-border px-3">
               {isAuthenticated && currentUser ? (
                 <button
                   type="button"
@@ -273,7 +325,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     openProfileModal();
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full py-2.5 rounded-xl bg-indigo-50 text-indigo-700 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-accent/10 text-accent font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>{userAvatar.icon}</span>
                   <span>Quản lý hồ sơ: {currentUser.name}</span>
@@ -286,7 +338,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       openAuthModal('login');
                       setMobileMenuOpen(false);
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white font-semibold text-xs text-center cursor-pointer"
+                    className="flex-1 py-2 rounded-xl bg-slate-900 dark:bg-indigo-600 text-white font-semibold text-xs text-center cursor-pointer"
                   >
                     Đăng Nhập
                   </button>
@@ -296,7 +348,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       openAuthModal('register');
                       setMobileMenuOpen(false);
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold text-xs text-center cursor-pointer"
+                    className="flex-1 py-2 rounded-xl bg-surface-subtle border border-border text-ink font-semibold text-xs text-center cursor-pointer"
                   >
                     Đăng Ký
                   </button>

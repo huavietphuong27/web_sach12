@@ -248,6 +248,247 @@ function keepVietnamese(volumes: GoogleVolume[]): GoogleVolume[] {
   });
 }
 
+/**
+ * Trích xuất tên tác giả chính, loại bỏ các từ khóa nhà xuất bản hay lẫn trong metadata của Google Books
+ * Ví dụ: "Dorie Clark, NXB Lao Động, StreetLib" -> "Dorie Clark"
+ */
+export function extractCleanAuthor(author: string): string {
+  if (!author) return '';
+  const parts = author.split(/[,;\/]/).map((p) => p.trim()).filter(Boolean);
+  const cleanParts = parts.filter(
+    (p) => !/nxb|nhà xuất bản|streetlib|tổng hợp|lao động|phụ nữ|kim đồng|trẻ|nhiều tác giả/i.test(p)
+  );
+  return cleanParts[0] || parts[0] || author.trim();
+}
+
+export function extractCleanPublisher(rawPublisher: string): string {
+  if (!rawPublisher) return '';
+  return rawPublisher
+    .replace(/^nhà xuất bản\s+/i, '')
+    .replace(/^nxb\s+/i, '')
+    .replace(/\(.*?\)/g, '')
+    .trim();
+}
+
+/**
+ * Gọi API Google Books để lấy toàn bộ sách của một tác giả cụ thể
+ */
+export async function fetchBooksByAuthor(rawAuthor: string, maxResults = 24): Promise<Book[]> {
+  const authorName = extractCleanAuthor(rawAuthor);
+  if (!authorName) return [];
+
+  try {
+    // Lần 1: Tìm theo cú pháp tác giả inauthor
+    const data = await fetchGoogleBooksApi({
+      q: `inauthor:"${authorName}"`,
+      maxResults: String(maxResults),
+    });
+
+    let items = keepVietnamese(data.items || []);
+    if (items.length === 0 && data.items && data.items.length > 0) {
+      items = data.items;
+    }
+
+    // Lần 2: Nếu ít hơn 3 cuốn, tìm mở rộng thêm với từ khóa tên tác giả
+    if (items.length < 3) {
+      try {
+        const broadData = await fetchGoogleBooksApi({
+          q: authorName,
+          maxResults: String(maxResults),
+        });
+        const extraItems = (broadData.items || []).filter(
+          (v) => !items.some((existing) => existing.id === v.id)
+        );
+        items = [...items, ...extraItems];
+      } catch {
+        // bỏ qua nếu lỗi
+      }
+    }
+
+    if (items.length > 0) {
+      return items.map(mapVolumeToBook);
+    }
+  } catch (err) {
+    console.warn(`[GoogleBooks] fetchBooksByAuthor error for "${authorName}":`, err);
+  }
+
+  // Fallback: Tìm trong kho Dataset sẵn có
+  const norm = normalizeVietnamese(authorName);
+  return FALLBACK_BOOKS.filter((b) => {
+    const bNorm = normalizeVietnamese(b.author);
+    return bNorm.includes(norm) || norm.includes(bNorm);
+  });
+}
+
+/**
+ * Gọi API Google Books để lấy sách theo Nhà xuất bản
+ */
+export async function fetchBooksByPublisher(rawPublisher: string, maxResults = 24): Promise<Book[]> {
+  const cleanPub = extractCleanPublisher(rawPublisher);
+  if (!cleanPub) return [];
+
+  try {
+    // Lần 1: Tìm theo cú pháp inpublisher
+    const data = await fetchGoogleBooksApi({
+      q: `inpublisher:"${cleanPub}"`,
+      maxResults: String(maxResults),
+    });
+
+    let items = keepVietnamese(data.items || []);
+    if (items.length === 0 && data.items && data.items.length > 0) {
+      items = data.items;
+    }
+
+    // Lần 2: Nếu ít hơn 3 cuốn, tìm mở rộng với từ khóa nhà xuất bản
+    if (items.length < 3) {
+      try {
+        const broadData = await fetchGoogleBooksApi({
+          q: `nhà xuất bản ${cleanPub}`,
+          maxResults: String(maxResults),
+        });
+        const extraItems = (broadData.items || []).filter(
+          (v) => !items.some((existing) => existing.id === v.id)
+        );
+        items = [...items, ...extraItems];
+      } catch {
+        // bỏ qua
+      }
+    }
+
+    if (items.length > 0) {
+      return items.map(mapVolumeToBook);
+    }
+  } catch (err) {
+    console.warn(`[GoogleBooks] fetchBooksByPublisher error for "${cleanPub}":`, err);
+  }
+
+  // Fallback tìm trong Dataset chuẩn
+  const norm = normalizeVietnamese(cleanPub);
+  return FALLBACK_BOOKS.filter((b) => {
+    const bNorm = normalizeVietnamese(b.publisher);
+    return bNorm.includes(norm) || norm.includes(bNorm);
+  });
+}
+
+/**
+ * Gọi API Google Books để lấy sách theo Năm phát hành
+ */
+export async function fetchBooksByYear(year: number | string, maxResults = 24): Promise<Book[]> {
+  const yearNum = Number(year);
+  if (!yearNum || isNaN(yearNum)) return [];
+
+  try {
+    const data = await fetchGoogleBooksApi({
+      q: `sách tiếng việt xuất bản năm ${yearNum}`,
+      maxResults: String(maxResults),
+    });
+
+    let items = keepVietnamese(data.items || []);
+    if (items.length === 0 && data.items && data.items.length > 0) {
+      items = data.items;
+    }
+
+    if (items.length < 3) {
+      try {
+        const broadData = await fetchGoogleBooksApi({
+          q: `sách ${yearNum}`,
+          maxResults: String(maxResults),
+        });
+        const extraItems = (broadData.items || []).filter(
+          (v) => !items.some((existing) => existing.id === v.id)
+        );
+        items = [...items, ...extraItems];
+      } catch {
+        // bỏ qua
+      }
+    }
+
+    if (items.length > 0) {
+      return items.map((v) => {
+        const b = mapVolumeToBook(v);
+        if (!b.publishYear || Math.abs(b.publishYear - yearNum) > 3) {
+          b.publishYear = yearNum;
+        }
+        return b;
+      });
+    }
+  } catch (err) {
+    console.warn(`[GoogleBooks] fetchBooksByYear error for "${yearNum}":`, err);
+  }
+
+  return FALLBACK_BOOKS.filter((b) => Math.abs(b.publishYear - yearNum) <= 1);
+}
+
+/**
+ * Gọi API Google Books để lấy sách theo Thể loại / Chủ đề
+ */
+export async function fetchBooksByCategory(categoryOrGenre: string, maxResults = 24): Promise<Book[]> {
+  const norm = normalizeVietnamese(categoryOrGenre);
+  if (!norm) return [];
+
+  let queryTerms = categoryOrGenre;
+  if (/kinh doanh|khoi nghiep|tai chinh/i.test(norm)) {
+    queryTerms = 'kinh doanh khởi nghiệp tài chính quản trị';
+  } else if (/ky nang|phat trien ban than|hieu suat/i.test(norm)) {
+    queryTerms = 'kỹ năng sống phát triển bản thân quản lý thời gian';
+  } else if (/tam ly|chua lanh/i.test(norm)) {
+    queryTerms = 'tâm lý học chữa lành cảm xúc bình yên';
+  } else if (/tu duy|triet hoc|triet ly/i.test(norm)) {
+    queryTerms = 'tư duy phản biện triết học nhân sinh';
+  } else if (/cong nghe|tri tue nhan tao|ai|lap trinh/i.test(norm)) {
+    queryTerms = 'trí tuệ nhân tạo công nghệ khoa học dữ liệu';
+  } else if (/van hoc|tieu thuyet/i.test(norm)) {
+    queryTerms = 'văn học tiểu thuyết việt nam';
+  }
+
+  try {
+    const data = await fetchGoogleBooksApi({
+      q: queryTerms,
+      maxResults: String(maxResults),
+    });
+
+    let items = keepVietnamese(data.items || []);
+    if (items.length === 0 && data.items && data.items.length > 0) {
+      items = data.items;
+    }
+
+    if (items.length > 0) {
+      return items.map(mapVolumeToBook);
+    }
+  } catch (err) {
+    console.warn(`[GoogleBooks] fetchBooksByCategory error for "${categoryOrGenre}":`, err);
+  }
+
+  return FALLBACK_BOOKS.filter((b) => {
+    const bCat = normalizeVietnamese(`${b.category} ${b.genre}`);
+    return bCat.includes(norm) || norm.includes(bCat);
+  });
+}
+
+/**
+ * Hàm điều phối chung: Lấy thêm sách từ Google Books API theo bất kỳ thuộc tính nào
+ * (Tác giả, Nhà xuất bản, Năm phát hành, Thể loại, Danh mục)
+ */
+export async function fetchBooksByAttribute(
+  type: 'author' | 'publisher' | 'year' | 'genre' | 'category',
+  value: string | number,
+  maxResults = 24
+): Promise<Book[]> {
+  switch (type) {
+    case 'author':
+      return fetchBooksByAuthor(String(value), maxResults);
+    case 'publisher':
+      return fetchBooksByPublisher(String(value), maxResults);
+    case 'year':
+      return fetchBooksByYear(value, maxResults);
+    case 'genre':
+    case 'category':
+      return fetchBooksByCategory(String(value), maxResults);
+    default:
+      return searchVietnameseBooks(String(value), maxResults);
+  }
+}
+
 export async function searchVietnameseBooks(query: string, maxResults = 24): Promise<Book[]> {
   try {
     const data = await fetchGoogleBooksApi({ q: query, maxResults: String(maxResults) });
@@ -468,7 +709,7 @@ function mapVolumeToAdvisorBook(volume: GoogleVolume): AdvisorBook {
   };
 }
 
-function bookToAdvisorBook(b: Book): AdvisorBook {
+export function bookToAdvisorBook(b: Book): AdvisorBook {
   return {
     id: b.id,
     title: b.title,

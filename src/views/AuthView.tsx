@@ -22,7 +22,6 @@ import {
   LogOut,
   KeyRound,
   Trash2,
-  BookOpen,
   Award,
 } from 'lucide-react';
 

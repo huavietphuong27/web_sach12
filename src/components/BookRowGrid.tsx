@@ -5,16 +5,18 @@ import { BookCard } from './BookCard';
 interface BookRowGridProps {
   books: Book[];
   onSelectBook: (book: Book) => void;
-  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
   compact?: boolean;
+  matchReasonsMap?: Record<string, string[]>;
 }
 
 interface RowItemProps {
   rowBooks: Book[];
   cols: number;
   onSelectBook: (book: Book) => void;
-  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
   compact?: boolean;
+  matchReasonsMap?: Record<string, string[]>;
 }
 
 const RowItem: React.FC<RowItemProps> = ({
@@ -23,6 +25,7 @@ const RowItem: React.FC<RowItemProps> = ({
   onSelectBook,
   onFilterByAttribute,
   compact,
+  matchReasonsMap,
 }) => {
   const rowRef = useRef<HTMLDivElement>(null);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -61,10 +64,10 @@ const RowItem: React.FC<RowItemProps> = ({
   // Determine grid class according to column count
   const gridClass =
     cols === 1
-      ? 'grid grid-cols-1 gap-6'
+      ? 'grid grid-cols-1 gap-6 items-stretch'
       : cols === 2
-      ? 'grid grid-cols-2 gap-6'
-      : 'grid grid-cols-4 gap-6';
+      ? 'grid grid-cols-2 gap-6 items-stretch'
+      : 'grid grid-cols-4 gap-6 items-stretch';
 
   return (
     <div ref={rowRef} className={`w-full ${gridClass}`}>
@@ -77,6 +80,7 @@ const RowItem: React.FC<RowItemProps> = ({
             onSelect={onSelectBook}
             onFilterByAttribute={onFilterByAttribute}
             compact={compact}
+            matchReasons={matchReasonsMap ? matchReasonsMap[book.id] : undefined}
             isRevealed={isRevealed}
             revealDelay={delay}
           />
@@ -91,6 +95,7 @@ export const BookRowGrid: React.FC<BookRowGridProps> = ({
   onSelectBook,
   onFilterByAttribute,
   compact = false,
+  matchReasonsMap,
 }) => {
   const [cols, setCols] = useState<number>(() => {
     if (typeof window === 'undefined') return 4;
@@ -136,6 +141,7 @@ export const BookRowGrid: React.FC<BookRowGridProps> = ({
           onSelectBook={onSelectBook}
           onFilterByAttribute={onFilterByAttribute}
           compact={compact}
+          matchReasonsMap={matchReasonsMap}
         />
       ))}
     </div>

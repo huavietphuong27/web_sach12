@@ -71,17 +71,52 @@ export function filterAndSortBooks(books: Book[], filters: FilterState): Book[] 
 
     if (filters.tagFilter) {
       if (filters.tagFilter.type === 'author') {
-        const targetAuthor = normalizeVietnamese(String(filters.tagFilter.value));
-        if (!normalizeVietnamese(book.author).includes(targetAuthor)) {
+        const targetRaw = String(filters.tagFilter.value);
+        const targetNorm = normalizeVietnamese(targetRaw);
+        const cleanTargetNorm = normalizeVietnamese(targetRaw.split(/[,;\/]/)[0].trim());
+
+        const bookAuthorNorm = normalizeVietnamese(book.author);
+        const bookAuthorClean = normalizeVietnamese(book.author.split(/[,;\/]/)[0].trim());
+
+        const isMatch =
+          bookAuthorNorm.includes(targetNorm) ||
+          targetNorm.includes(bookAuthorNorm) ||
+          (cleanTargetNorm && bookAuthorNorm.includes(cleanTargetNorm)) ||
+          (cleanTargetNorm && bookAuthorClean.includes(cleanTargetNorm)) ||
+          (cleanTargetNorm && cleanTargetNorm.includes(bookAuthorClean));
+
+        if (!isMatch) {
           return false;
         }
       } else if (filters.tagFilter.type === 'publisher') {
         const targetPub = normalizeVietnamese(String(filters.tagFilter.value));
-        if (!normalizeVietnamese(book.publisher).includes(targetPub)) {
+        const cleanTargetPub = normalizeVietnamese(String(filters.tagFilter.value).replace(/nhà xuất bản|nxb/gi, '').trim());
+        const bookPub = normalizeVietnamese(book.publisher || '');
+        const cleanBookPub = normalizeVietnamese((book.publisher || '').replace(/nhà xuất bản|nxb/gi, '').trim());
+
+        const isMatch =
+          bookPub.includes(targetPub) ||
+          targetPub.includes(bookPub) ||
+          (cleanTargetPub && (bookPub.includes(cleanTargetPub) || cleanBookPub.includes(cleanTargetPub) || cleanTargetPub.includes(cleanBookPub)));
+
+        if (!isMatch) {
           return false;
         }
       } else if (filters.tagFilter.type === 'year') {
-        if (book.publishYear !== Number(filters.tagFilter.value)) {
+        if (Number(book.publishYear) !== Number(filters.tagFilter.value)) {
+          return false;
+        }
+      } else if (filters.tagFilter.type === 'genre' || filters.tagFilter.type === 'category') {
+        const targetCat = normalizeVietnamese(String(filters.tagFilter.value));
+        const bCat = normalizeVietnamese(book.category || '');
+        const bGenre = normalizeVietnamese(book.genre || '');
+        const isMatch =
+          bCat.includes(targetCat) ||
+          targetCat.includes(bCat) ||
+          bGenre.includes(targetCat) ||
+          targetCat.includes(bGenre);
+
+        if (!isMatch) {
           return false;
         }
       }

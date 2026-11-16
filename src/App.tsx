@@ -14,13 +14,20 @@ import { AuthView } from './views/AuthView';
 import {
   AdvisorBook,
   advisorBookToBook,
+  bookToAdvisorBook,
   fetchBookById,
   fetchManyVietnameseBooks,
   deduplicateAndMergeBooks,
+  extractCleanAuthor,
+  extractCleanPublisher,
+  fetchBooksByAttribute,
 } from './services/googleBooks';
+import { advisorStore, AdvisorMessage } from './services/aiAdvisor';
+import { saveUserSearchQuery } from './services/homeRecommendations';
 import { FloatingChat } from './components/FloatingChat';
 import { FavoritesModal } from './views/FavoritesModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthModal } from './components/AuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { eventTracker } from './services/eventTracker';
@@ -178,21 +185,32 @@ function MainApp() {
     setQuickQuery(query);
     setSelectedGoal(null);
     eventTracker.trackSearch(query, currentUser?.id);
+    if (currentUser?.id) {
+      saveUserSearchQuery(currentUser.id, query);
+    }
     navigateTo('advisor');
   };
 
   const handleFilterByAttribute = (
-    type: 'author' | 'publisher' | 'year',
+    type: 'author' | 'publisher' | 'year' | 'genre' | 'category',
     value: string | number
   ) => {
+    let cleanVal = String(value);
+    if (type === 'author') {
+      cleanVal = extractCleanAuthor(String(value));
+    } else if (type === 'publisher') {
+      cleanVal = extractCleanPublisher(String(value));
+    }
+
     let label = '';
-    if (type === 'author') label = `Tác giả: ${value}`;
-    else if (type === 'publisher') label = `Nhà xuất bản: ${value}`;
+    if (type === 'author') label = `Tác giả: ${cleanVal}`;
+    else if (type === 'publisher') label = `Nhà xuất bản: ${cleanVal || value}`;
     else if (type === 'year') label = `Năm phát hành: ${value}`;
+    else if (type === 'genre' || type === 'category') label = `Chủ đề / Thể loại: ${value}`;
 
     setActiveTagFilter({
       type,
-      value,
+      value: cleanVal || value,
       label,
     });
     if (currentRoute !== 'detail') {
@@ -201,6 +219,19 @@ function MainApp() {
     setCurrentRoute('catalog');
     window.location.hash = 'catalog';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Tự động gọi API Google Books để lấy thêm sách theo bất kỳ đề tài nào (Tác giả, Năm, Thể loại, NXB)
+    if (cleanVal || value) {
+      fetchBooksByAttribute(type, cleanVal || value)
+        .then((fetched) => {
+          if (fetched && fetched.length > 0) {
+            handleAppendBooks(fetched);
+          }
+        })
+        .catch((err) => {
+          console.warn('[App] Lỗi khi nạp sách theo thuộc tính:', err);
+        });
+    }
   };
 
   const handleClearTagFilter = () => {
@@ -255,6 +286,7 @@ function MainApp() {
             activeTagFilter={activeTagFilter}
             onFilterByAttribute={handleFilterByAttribute}
             onClearTagFilter={handleClearTagFilter}
+            onAppendBooks={handleAppendBooks}
           />
         )}
 
@@ -298,6 +330,7 @@ function MainApp() {
             onFilterByAttribute={handleFilterByAttribute}
             isFavorite={isFavorite(selectedBook.id)}
             onToggleFavorite={toggleFavorite}
+            onAppendBooks={handleAppendBooks}
           />
         )}
       </main>
@@ -315,8 +348,43 @@ function MainApp() {
             handleSelectBook(book);
             setIsFloatingChatOpen(false);
           }}
-          onOpenFullChat={() => {
+          onOpenFullChat={(floatingMessages) => {
             setIsFloatingChatOpen(false);
+            // Đồng bộ toàn bộ lịch sử trò chuyện từ bong bóng chat sang AI Advisor toàn trang
+            if (floatingMessages && floatingMessages.length > 1) {
+              const converted: AdvisorMessage[] = floatingMessages
+                .filter((m) => m.id !== 'welcome')
+                .map((m) => {
+                  if (m.sender === 'user') {
+                    return {
+                      id: m.id,
+                      role: 'user' as const,
+                      text: m.text,
+                    };
+                  } else {
+                    const suggestedAdvisorBooks = (m.suggestedBookIds || [])
+                      .map((id) => allBooks.find((b) => b.id === id))
+                      .filter((b): b is typeof allBooks[0] => Boolean(b))
+                      .map((b) => bookToAdvisorBook(b));
+
+                    return {
+                      id: m.id,
+                      role: 'assistant' as const,
+                      text: m.text,
+                      turn: {
+                        systemAlert: null,
+                        analysis: m.text,
+                        recommendedBooks: suggestedAdvisorBooks,
+                        followUpQuestion: '',
+                      },
+                    };
+                  }
+                });
+
+              if (converted.length > 0) {
+                advisorStore.setMessages(converted);
+              }
+            }
             navigateTo('advisor');
           }}
         />
@@ -357,8 +425,10 @@ function MainApp() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApp />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <MainApp />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

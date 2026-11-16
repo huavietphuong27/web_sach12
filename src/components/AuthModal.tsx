@@ -1,23 +1,64 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { AVATAR_OPTIONS } from '../services/authService';
-import { X, Mail, Lock, User, Sparkles, Check, AlertCircle, ArrowRight } from 'lucide-react';
+import { AVATAR_OPTIONS, AuthService } from '../services/authService';
+import { X, Mail, Lock, User, Sparkles, Check, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export const AuthModal: React.FC = () => {
   const { isAuthModalOpen, closeAuthModal, authModalMode, login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>(authModalMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [name, setName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('avatar-1');
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
     setMode(authModalMode);
     setError(null);
     setSuccessMsg(null);
+    setShowPassword(false);
+    if (isAuthModalOpen && authModalMode === 'login') {
+      const remembered = AuthService.getRememberedEmail();
+      if (remembered) {
+        setEmail(remembered);
+        setRememberMe(true);
+      }
+    }
   }, [authModalMode, isAuthModalOpen]);
+
+  useEffect(() => {
+    if (!isAuthModalOpen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeAuthModal();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+
+    const focusTimer = window.setTimeout(() => {
+      if (mode === 'register') {
+        nameInputRef.current?.focus();
+      } else {
+        emailInputRef.current?.focus();
+      }
+    }, 10);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleEscape);
+      window.clearTimeout(focusTimer);
+    };
+  }, [isAuthModalOpen, mode, closeAuthModal]);
 
   if (!isAuthModalOpen) return null;
 
@@ -27,7 +68,7 @@ export const AuthModal: React.FC = () => {
     setSuccessMsg(null);
 
     if (mode === 'login') {
-      const res = login(email, password);
+      const res = login(email, password, rememberMe);
       if (!res.success) {
         setError(res.error || 'Đăng nhập thất bại.');
       }
@@ -41,11 +82,11 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  const handleQuickDemo = () => {
-    setEmail('demo@bookmind.vn');
-    setPassword('123456');
+  const handleQuickLogin = (accEmail: string, accPassword: string) => {
+    setEmail(accEmail);
+    setPassword(accPassword);
     setError(null);
-    const res = login('demo@bookmind.vn', '123456');
+    const res = login(accEmail, accPassword, rememberMe);
     if (!res.success) {
       setError(res.error || 'Đăng nhập mẫu thất bại.');
     }
@@ -61,6 +102,7 @@ export const AuthModal: React.FC = () => {
         {/* Header Banner */}
         <div className="relative bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-900 text-white p-6 pb-5">
           <button
+            type="button"
             onClick={closeAuthModal}
             className="absolute top-4 right-4 p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer"
             aria-label="Đóng"
@@ -118,14 +160,20 @@ export const AuthModal: React.FC = () => {
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs animate-shake">
+            <div
+              role="alert"
+              className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs animate-shake"
+            >
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
               <span>{error}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+            <div
+              role="status"
+              className="flex items-start gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs"
+            >
               <Check className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
               <span>{successMsg}</span>
             </div>
@@ -140,6 +188,7 @@ export const AuthModal: React.FC = () => {
               <div className="relative">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
+                  ref={nameInputRef}
                   type="text"
                   required
                   value={name}
@@ -193,6 +242,7 @@ export const AuthModal: React.FC = () => {
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
+                ref={emailInputRef}
                 type="email"
                 required
                 value={email}
@@ -211,16 +261,36 @@ export const AuthModal: React.FC = () => {
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 focus:border-indigo-600"
+                placeholder="Nhập mật khẩu của bạn"
+                className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/30 focus:border-indigo-600"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
+
+          {mode === 'login' && (
+            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none pt-0.5">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span>Ghi nhớ đăng nhập</span>
+            </label>
+          )}
 
           {/* Submit Button */}
           <button
@@ -231,17 +301,46 @@ export const AuthModal: React.FC = () => {
             <ArrowRight className="w-4 h-4 text-indigo-300" />
           </button>
 
-          {/* Demo account helper button */}
+          {/* Demo account helper buttons */}
           {mode === 'login' && (
-            <div className="pt-2 border-t border-slate-100 text-center">
-              <button
-                type="button"
-                onClick={handleQuickDemo}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold inline-flex items-center gap-1.5 hover:underline cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Thử nghiệm nhanh: Đăng nhập tài khoản Demo có sẵn</span>
-              </button>
+            <div className="pt-3 border-t border-slate-100 flex flex-col items-center gap-2">
+              <span className="text-[11px] text-slate-500 font-medium">Đăng nhập nhanh để kiểm thử:</span>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('demo@bookmind.vn', '123456')}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Tài khoản độc giả trải nghiệm thông thường"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Độc Giả Demo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('admin@bookmind.vn', 'admin123')}
+                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Tài khoản Quản trị / Giảng viên có quyền xem bảng kiểm thử 5 mô hình"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Giảng Viên / Admin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('tamly@bookmind.vn', '123456')}
+                  className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Tài khoản đã cày dữ liệu sách Tâm lý & Chữa lành"
+                >
+                  <span>🌸 Minh Tâm Lý</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('congnghe@bookmind.vn', '123456')}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Tài khoản đã cày dữ liệu sách Công nghệ, AI & Kinh doanh"
+                >
+                  <span>🚀 Hùng Công Nghệ</span>
+                </button>
+              </div>
             </div>
           )}
         </form>

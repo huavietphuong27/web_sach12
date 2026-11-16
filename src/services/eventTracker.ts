@@ -19,6 +19,75 @@ export function getOrCreateSessionId(): string {
   }
 }
 
+const HOUR_MS = 3600 * 1000;
+
+function makeSeedEvent(
+  userId: string,
+  idx: number,
+  hoursAgo: number,
+  eventType: EventType,
+  extra: Partial<UserBehaviorEvent>
+): UserBehaviorEvent {
+  return {
+    eventId: `seed_${userId}_${idx}`,
+    userId,
+    sessionId: `sess_seed_${userId}`,
+    eventType,
+    timestamp: Date.now() - hoursAgo * HOUR_MS,
+    ...extra,
+  };
+}
+
+function getSeedEventsForUser(userId?: string): UserBehaviorEvent[] {
+  if (userId === 'u-tamly-01') {
+    return [
+      makeSeedEvent(userId, 1, 2, 'search_submitted', { payload: { query: 'chữa lành tâm lý' } }),
+      makeSeedEvent(userId, 2, 3, 'book_detail_open', { bookId: 'ds-hieu-ve-trai-tim', bookTitle: 'Hiểu Về Trái Tim', bookAuthors: ['Minh Niệm'], bookCategories: ['Tâm lý & Chữa lành'], payload: { source: 'search' } }),
+      makeSeedEvent(userId, 3, 3, 'favorite_toggle', { bookId: 'ds-hieu-ve-trai-tim', bookTitle: 'Hiểu Về Trái Tim', bookAuthors: ['Minh Niệm'], bookCategories: ['Tâm lý & Chữa lành'], payload: { isFavorite: true } }),
+      makeSeedEvent(userId, 4, 3, 'rating_submitted', { bookId: 'ds-hieu-ve-trai-tim', bookTitle: 'Hiểu Về Trái Tim', bookAuthors: ['Minh Niệm'], bookCategories: ['Tâm lý & Chữa lành'], payload: { rating: 5 } }),
+      makeSeedEvent(userId, 5, 10, 'search_submitted', { payload: { query: 'cân bằng cảm xúc' } }),
+      makeSeedEvent(userId, 6, 11, 'book_detail_open', { bookId: 'ds-can-bang-cam-xuc', bookTitle: 'Cân Bằng Cảm Xúc, Cả Lúc Bão Giông', bookAuthors: ['Richard Nicholls'], bookCategories: ['Tâm lý & Chữa lành'], payload: { source: 'recommendation' } }),
+      makeSeedEvent(userId, 7, 11, 'favorite_toggle', { bookId: 'ds-can-bang-cam-xuc', bookTitle: 'Cân Bằng Cảm Xúc, Cả Lúc Bão Giông', bookAuthors: ['Richard Nicholls'], bookCategories: ['Tâm lý & Chữa lành'], payload: { isFavorite: true } }),
+      makeSeedEvent(userId, 8, 11, 'rating_submitted', { bookId: 'ds-can-bang-cam-xuc', bookTitle: 'Cân Bằng Cảm Xúc, Cả Lúc Bão Giông', bookAuthors: ['Richard Nicholls'], bookCategories: ['Tâm lý & Chữa lành'], payload: { rating: 5 } }),
+      makeSeedEvent(userId, 9, 20, 'book_detail_open', { bookId: 'ds-lam-nhu-choi', bookTitle: 'Làm Như Chơi', bookAuthors: ['Minh Niệm'], bookCategories: ['Tâm lý & Chữa lành'], payload: { source: 'category' } }),
+      makeSeedEvent(userId, 10, 20, 'favorite_toggle', { bookId: 'ds-lam-nhu-choi', bookTitle: 'Làm Như Chơi', bookAuthors: ['Minh Niệm'], bookCategories: ['Tâm lý & Chữa lành'], payload: { isFavorite: true } }),
+      makeSeedEvent(userId, 11, 36, 'search_submitted', { payload: { query: 'vượt qua trầm cảm' } }),
+      makeSeedEvent(userId, 12, 37, 'book_detail_open', { bookId: 'ds-dai-duong-den', bookTitle: 'Đại Dương Đen', bookAuthors: ['Đặng Hoàng Giang'], bookCategories: ['Tâm lý & Xã hội'], payload: { source: 'search' } }),
+      makeSeedEvent(userId, 13, 37, 'rating_submitted', { bookId: 'ds-dai-duong-den', bookTitle: 'Đại Dương Đen', bookAuthors: ['Đặng Hoàng Giang'], bookCategories: ['Tâm lý & Xã hội'], payload: { rating: 5 } }),
+      makeSeedEvent(userId, 14, 60, 'book_detail_open', { bookId: 'ds-thinking-fast-slow', bookTitle: 'Tư Duy Nhanh Và Chậm', bookAuthors: ['Daniel Kahneman'], bookCategories: ['Tư duy & Tâm lý học'], payload: { source: 'recommendation' } }),
+      makeSeedEvent(userId, 15, 72, 'book_detail_open', { bookId: 'ds-nha-gia-kim', bookTitle: 'Nhà Giả Kim', bookAuthors: ['Paulo Coelho'], bookCategories: ['Văn học & Triết lý sống'], payload: { source: 'category' } }),
+      makeSeedEvent(userId, 16, 72, 'favorite_toggle', { bookId: 'ds-nha-gia-kim', bookTitle: 'Nhà Giả Kim', bookAuthors: ['Paulo Coelho'], bookCategories: ['Văn học & Triết lý sống'], payload: { isFavorite: true } }),
+      makeSeedEvent(userId, 17, 96, 'rating_submitted', { bookId: 'ds-nguyen-ly-80-20', bookTitle: 'Nguyên Lý 80/20', bookAuthors: ['Richard Koch'], bookCategories: ['Kinh doanh & Hiệu suất'], payload: { rating: 2 } }),
+      makeSeedEvent(userId, 18, 120, 'recommendation_impression', { bookId: 'ds-nguoi-dua-dieu', bookTitle: 'Người Đua Diều', bookAuthors: ['Khaled Hosseini'], bookCategories: ['Văn học & Tiểu thuyết'], payload: { position: 1 } }),
+    ];
+  }
+
+  if (userId === 'u-congnghe-01') {
+    return [
+      makeSeedEvent(userId, 1, 2, 'search_submitted', { payload: { query: 'trí tuệ nhân tạo AI' } }),
+      makeSeedEvent(userId, 2, 2, 'book_detail_open', { bookId: 'ds-ai-2041', bookTitle: 'AI 2041: 10 Viễn Cảnh Cho Tương Lai', bookAuthors: ['Kai-Fu Lee', 'Chen Qiufan'], bookCategories: ['Công nghệ & Trí tuệ nhân tạo'], payload: { source: 'search' } }),
+      makeSeedEvent(userId, 3, 2, 'favorite_toggle', { bookId: 'ds-ai-2041', bookTitle: 'AI 2041: 10 Viễn Cảnh Cho Tương Lai', bookAuthors: ['Kai-Fu Lee', 'Chen Qiufan'], bookCategories: ['Công nghệ & Trí tuệ nhân tạo'], payload: { isFavorite: true } }),
+      makeSeedEvent(userId, 4, 2, 'rating_submitted', { bookId: 'ds-ai-2041', bookTitle: 'AI 2041: 10 Viễn Cảnh Cho Tương Lai', bookAuthors: ['Kai-Fu Lee', 'Chen Qiufan'], bookCategories: ['Công nghệ & Trí tuệ nhân tạo'], payload: { rating: 5 } }),
+      makeSeedEvent(userId, 5, 8, 'search_submitted', { payload: { query: 'lập trình clean code' } }),
+      makeSeedEvent(userId, 6, 9, 'book_detail_open', { bookId: 'ds-clean-code', bookTitle: 'Clean Code', bookAuthors: ['Robert C. Martin'], bookCategories: ['Công nghệ & Kỹ thuật phần mềm'], payload: { source: 'search' } }),
+      makeSeedEvent(userId, 7, 9, 'favorite_toggle', { bookId: 'ds-clean-code', bookTitle: 'Clean Code', bookAuthors: ['Robert C. Martin'], bookCategories: ['Công nghệ & Kỹ thuật phần mềm'], payload: { isFavorite: true } }),
+      makeSeedEvent(userId, 8, 9, 'rating_submitted', { bookId: 'ds-clean-code', bookTitle: 'Clean Code', bookAuthors: ['Robert C. Martin'], bookCategories: ['Công nghệ & Kỹ thuật phần mềm'], payload: { rating: 5 } }),
+      makeSeedEvent(userId, 9, 18, 'search_submitted', { payload: { query: 'dữ liệu kinh doanh' } }),
+      makeSeedEvent(userId, 10, 19, 'book_detail_open', { bookId: 'ds-data-science-business', bookTitle: 'Khoa Học Dữ Liệu Trong Kinh Doanh', bookAuthors: ['Foster Provost', 'Tom Fawcett'], bookCategories: ['Công nghệ & Trí tuệ nhân tạo'], payload: { source: 'recommendation' } }),
+      makeSeedEvent(userId, 11, 19, 'favorite_toggle', { bookId: 'ds-data-science-business', bookTitle: 'Khoa Học Dữ Liệu Trong Kinh Doanh', bookAuthors: ['Foster Provost', 'Tom Fawcett'], bookCategories: ['Công nghệ & Trí tuệ nhân tạo'], payload: { isFavorite: true } }),
+      makeSeedEvent(userId, 12, 30, 'book_detail_open', { bookId: 'ds-nexus-harari', bookTitle: 'Nexus', bookAuthors: ['Yuval Noah Harari'], bookCategories: ['Công nghệ & Triết học'], payload: { source: 'recommendation' } }),
+      makeSeedEvent(userId, 13, 40, 'search_submitted', { payload: { query: 'khởi nghiệp công nghệ' } }),
+      makeSeedEvent(userId, 14, 41, 'book_detail_open', { bookId: 'ds-zero-to-one', bookTitle: 'Không Đến Một (Zero to One)', bookAuthors: ['Peter Thiel'], bookCategories: ['Kinh doanh & Công nghệ'], payload: { source: 'category' } }),
+      makeSeedEvent(userId, 15, 41, 'rating_submitted', { bookId: 'ds-zero-to-one', bookTitle: 'Không Đến Một (Zero to One)', bookAuthors: ['Peter Thiel'], bookCategories: ['Kinh doanh & Công nghệ'], payload: { rating: 5 } }),
+      makeSeedEvent(userId, 16, 65, 'book_detail_open', { bookId: 'ds-psychology-of-money', bookTitle: 'Tâm Lý Học Về Tiền', bookAuthors: ['Morgan Housel'], bookCategories: ['Kinh doanh & Tài chính'], payload: { source: 'category' } }),
+      makeSeedEvent(userId, 17, 90, 'book_detail_open', { bookId: 'ds-deep-work', bookTitle: 'Deep Work', bookAuthors: ['Cal Newport'], bookCategories: ['Kỹ năng & Hiệu suất'], payload: { source: 'recommendation' } }),
+      makeSeedEvent(userId, 18, 110, 'rating_submitted', { bookId: 'ds-mat-biec', bookTitle: 'Mắt Biếc', bookAuthors: ['Nguyễn Nhật Ánh'], bookCategories: ['Văn học Việt Nam'], payload: { rating: 2 } }),
+    ];
+  }
+
+  return [];
+}
+
 class EventTrackerService {
   private impressionCache = new Set<string>(); // Chống ghi đè impression trùng lặp trong 60 giây
 
@@ -27,16 +96,16 @@ class EventTrackerService {
     return `${STORAGE_PREFIX}${uid}`;
   }
 
-  // Lấy danh sách sự kiện từ LocalStorage
+  // Lấy danh sách sự kiện từ LocalStorage (nạp dữ liệu mẫu nếu tài khoản seed chưa có sự kiện)
   public getEvents(userId?: string): UserBehaviorEvent[] {
     try {
       const raw = localStorage.getItem(this.getStorageKey(userId));
-      if (!raw) return [];
+      if (!raw) return getSeedEventsForUser(userId);
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
     } catch (e) {
       console.warn('Lỗi đọc sự kiện người dùng:', e);
-      return [];
+      return getSeedEventsForUser(userId);
     }
   }
 
@@ -65,8 +134,8 @@ class EventTrackerService {
       timestamp: Date.now(),
       bookId: data.bookId || data.book?.id,
       bookTitle: data.bookTitle || data.book?.title,
-      bookCategories: data.bookCategories || data.book?.categories || [],
-      bookAuthors: data.bookAuthors || data.book?.authors || [],
+      bookCategories: data.bookCategories || (data.book?.genre ? [data.book.genre] : []),
+      bookAuthors: data.bookAuthors || (data.book?.author ? [data.book.author] : []),
       payload: data.payload || {},
     };
 
@@ -89,6 +158,26 @@ class EventTrackerService {
       userId,
       payload: { query: query.trim(), position },
     });
+  }
+
+  // Lấy các từ khóa tìm kiếm gần đây của người dùng
+  public getRecentSearches(userId?: string, limit = 5): string[] {
+    const events = this.getEvents(userId);
+    const searches: string[] = [];
+    const seen = new Set<string>();
+    for (let i = events.length - 1; i >= 0; i--) {
+      const ev = events[i];
+      if (ev.eventType === 'search_submitted' && ev.payload?.query) {
+        const q = String(ev.payload.query).trim();
+        const norm = q.toLowerCase();
+        if (norm && !seen.has(norm)) {
+          seen.add(norm);
+          searches.push(q);
+          if (searches.length >= limit) break;
+        }
+      }
+    }
+    return searches;
   }
 
   // 2. Ghi nhận hiển thị sách (Impression) với chống trùng lặp

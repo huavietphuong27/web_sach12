@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquareText, X, Send, BookOpen, Sparkles, ChevronDown } from 'lucide-react';
+import { MessageSquareText, X, Send, BookOpen, Sparkles, ChevronDown, RotateCcw } from 'lucide-react';
 import { Book, ChatMessage } from '../types/book';
 import { generateAssistantResponse } from '../utils/bookRecommender';
 import { generateWithGemini } from '../services/aiAdvisor';
@@ -9,7 +9,7 @@ interface FloatingChatProps {
   isOpen: boolean;
   onToggle: () => void;
   onSelectBook: (book: Book) => void;
-  onOpenFullChat: () => void;
+  onOpenFullChat: (currentMessages: ChatMessage[]) => void;
 }
 
 const DEFAULT_SUGGESTIONS = [
@@ -17,6 +17,16 @@ const DEFAULT_SUGGESTIONS = [
   'Kỷ luật & vượt qua sự trì hoãn',
   'Cân bằng cảm xúc & giảm stress',
 ];
+
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  sender: 'assistant',
+  text: 'Chào bạn 👋 Mình là **BookMind AI**. Bạn đang muốn tìm sách thuộc chủ đề gì (kinh doanh, kỹ năng, tâm lý, công nghệ, chữa lành...) hay đang có tâm sự gì cứ nói với mình nhé!',
+  timestamp: 'Vừa xong',
+  suggestedBookIds: [],
+};
+
+const CHAT_STORAGE_KEY = 'bookmind_floating_chat_history_v1';
 
 function renderChatMarkdown(text: string): string {
   const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -44,19 +54,37 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
   onSelectBook,
   onOpenFullChat,
 }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      sender: 'assistant',
-      text: 'Chào bạn 👋 Mình là **BookMind AI**. Bạn đang muốn tìm sách thuộc chủ đề gì (kinh doanh, kỹ năng, tâm lý, công nghệ, chữa lành...) hay đang có tâm sự gì cứ nói với mình nhé!',
-      timestamp: 'Vừa xong',
-      suggestedBookIds: [],
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return [WELCOME_MESSAGE];
+  });
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [quickSuggestions, setQuickSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Tự động lưu lịch sử chat vào localStorage
+  useEffect(() => {
+    try {
+      if (messages.length > 1) {
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+      }
+    } catch {
+      // ignore
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -67,6 +95,29 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
       scrollToBottom();
     }
   }, [messages, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onToggle();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onToggle]);
+
+  const handleResetChat = () => {
+    try {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setMessages([WELCOME_MESSAGE]);
+    setInputText('');
+    setIsTyping(false);
+    setQuickSuggestions(DEFAULT_SUGGESTIONS);
+  };
 
   const handleSend = async (customText?: string) => {
     const trimmed = (customText ?? inputText).trim();
@@ -126,7 +177,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
         <aside
           role="dialog"
           aria-label="Cửa sổ Gợi Ý Sách AI"
-          className="fixed bottom-22 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 max-h-[580px] h-[520px] bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-900/15 flex flex-col z-40 overflow-hidden transition-all duration-200 animate-fade-in"
+          className="fixed bottom-22 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-96 max-h-[580px] h-[520px] bg-white rounded-3xl border border-slate-200 shadow-2xl shadow-slate-900/15 flex flex-col z-40 overflow-hidden transition-all duration-200 animate-fade-in"
         >
           {/* Header */}
           <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0 shadow-xs">
@@ -145,13 +196,24 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
             </div>
             <div className="flex items-center gap-1">
               <button
-                onClick={onOpenFullChat}
-                className="text-xs px-2.5 py-1.5 min-h-[36px] flex items-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer mr-1 font-medium"
-                title="Mở rộng sang trang tư vấn chuyên sâu"
+                type="button"
+                onClick={handleResetChat}
+                className="p-1.5 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-white/15 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                title="Tạo cuộc trò chuyện mới"
+                aria-label="Tạo cuộc trò chuyện mới"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenFullChat(messages)}
+                className="text-xs px-2.5 py-1.5 min-h-[36px] flex items-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer font-medium"
+                title="Mở rộng sang trang tư vấn chuyên sâu (giữ nguyên lịch sử trò chuyện)"
               >
                 Mở rộng
               </button>
               <button
+                type="button"
                 onClick={onToggle}
                 className="p-1.5 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg hover:bg-white/15 text-white transition-colors cursor-pointer"
                 aria-label="Thu nhỏ trợ lý chat"
@@ -162,7 +224,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
           </div>
 
           {/* Messages list */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50" aria-live="polite">
             {messages.map((msg) => {
               const isAssistant = msg.sender === 'assistant';
               const suggested = msg.suggestedBookIds

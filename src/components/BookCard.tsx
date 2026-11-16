@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Book } from '../types/book';
 import { formatReadingTime } from '../utils/bookRecommender';
 import { ArrowUpRight, BookOpen } from 'lucide-react';
+import { BookmarkButton } from './BookmarkButton';
+import { useAuth } from '../context/AuthContext';
 
 interface BookCardProps {
   book: Book;
   onSelect: (book: Book) => void;
-  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year', value: string | number) => void;
+  onFilterByAttribute?: (type: 'author' | 'publisher' | 'year' | 'genre' | 'category', value: string | number) => void;
   matchReasons?: string[];
   compact?: boolean;
   isRevealed?: boolean;
@@ -27,6 +29,8 @@ export const BookCard: React.FC<BookCardProps> = ({
   const [revealDone, setRevealDone] = useState(false);
   const [isWillChangeActive, setIsWillChangeActive] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const { isFavorite, toggleFavorite } = useAuth();
+  const saved = isFavorite(book.id);
 
   React.useEffect(() => {
     setImgError(false);
@@ -52,7 +56,7 @@ export const BookCard: React.FC<BookCardProps> = ({
 
   const handleAttributeClick = (
     e: React.MouseEvent,
-    type: 'author' | 'publisher' | 'year',
+    type: 'author' | 'publisher' | 'year' | 'genre' | 'category',
     value: string | number
   ) => {
     e.stopPropagation();
@@ -69,9 +73,9 @@ export const BookCard: React.FC<BookCardProps> = ({
   };
 
   return (
-    <div className="book-scene w-full">
+    <div className="book-scene w-full h-full">
       <div
-        className={`book-reveal w-full ${isRevealed ? 'is-revealed' : ''} ${
+        className={`book-reveal w-full h-full ${isRevealed ? 'is-revealed' : ''} ${
           revealDone ? 'reveal-done' : ''
         }`}
         style={{
@@ -86,7 +90,7 @@ export const BookCard: React.FC<BookCardProps> = ({
           tabIndex={0}
           role="button"
           aria-label={`Xem chi tiết tác phẩm ${book.title} của ${book.author}`}
-          className={`book-card-item cursor-pointer select-none group focus-visible:outline-2 focus-visible:outline-[#4F46E5] focus-visible:outline-offset-2 ${
+          className={`book-card-item h-full cursor-pointer select-none group focus-visible:outline-2 focus-visible:outline-[#4F46E5] focus-visible:outline-offset-2 ${
             compact ? 'p-3 gap-3' : 'p-4 gap-4'
           }`}
         >
@@ -130,7 +134,7 @@ export const BookCard: React.FC<BookCardProps> = ({
                   <>
                     {/* Publisher & Year on Cover */}
                 <div
-                  className="flex items-center justify-between text-xs font-sans tracking-wider uppercase opacity-85 z-10"
+                  className="flex items-center justify-between text-xs font-sans tracking-wider uppercase opacity-85 z-10 pr-10"
                   style={{ color: book.coverPalette.text }}
                 >
                   <button
@@ -192,9 +196,17 @@ export const BookCard: React.FC<BookCardProps> = ({
                   </>
                 )}
 
+                {/* Bookmark yêu thích */}
+                <div className="absolute top-2.5 right-2.5 z-30">
+                  <BookmarkButton
+                    isActive={saved}
+                    onToggle={() => toggleFavorite(book)}
+                  />
+                </div>
+
                 {/* Quick open indicator icon */}
                 <div
-                  className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 text-[#4F46E5] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none shadow-sm"
+                  className="absolute bottom-2.5 right-2.5 w-7 h-7 rounded-full bg-white/90 text-[#4F46E5] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none shadow-sm"
                   aria-hidden="true"
                 >
                   <ArrowUpRight className="w-4 h-4" />
@@ -207,16 +219,19 @@ export const BookCard: React.FC<BookCardProps> = ({
           </div>
 
           {/* Book Information below 3D volume */}
-          <div className="flex flex-col flex-1 justify-between pt-1">
-            <div>
-              <h3 className="font-sans text-base font-bold text-[#0F172A] group-hover:text-[#4F46E5] transition-colors line-clamp-2 leading-snug">
+          <div className="flex flex-col flex-1 justify-between min-w-0 pt-1">
+            <div className="min-w-0">
+              <h3
+                title={book.title}
+                className="font-sans text-base font-bold text-[#0F172A] group-hover:text-[#4F46E5] transition-colors line-clamp-2 leading-snug text-pretty"
+              >
                 {book.title}
               </h3>
               <div>
                 <button
                   type="button"
                   onClick={(e) => handleAttributeClick(e, 'author', book.author)}
-                  className="text-left text-sm text-[#64748B] hover:text-[#4F46E5] hover:underline transition-colors font-medium cursor-pointer min-h-[44px] inline-flex items-center"
+                  className="text-left text-sm text-[#64748B] hover:text-[#4F46E5] hover:underline transition-colors font-medium cursor-pointer min-h-[44px] inline-flex items-center max-w-full truncate"
                   title={`Xem các tác phẩm của ${book.author}`}
                 >
                   {book.author}
@@ -225,7 +240,14 @@ export const BookCard: React.FC<BookCardProps> = ({
 
               {/* Unboxed Metadata with dot separator */}
               <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#64748B] mt-1">
-                <span>{book.genre}</span>
+                <button
+                  type="button"
+                  onClick={(e) => handleAttributeClick(e, 'genre', book.genre)}
+                  className="hover:text-[#4F46E5] hover:underline cursor-pointer font-medium"
+                  title={`Lọc thêm các sách cùng thể loại "${book.genre}"`}
+                >
+                  {book.genre}
+                </button>
                 <span aria-hidden="true" className="text-[#E2E8F0]">·</span>
                 <span>{formatReadingTime(book.pages)}</span>
               </div>
@@ -247,7 +269,7 @@ export const BookCard: React.FC<BookCardProps> = ({
             </div>
 
             {/* View Details Action Link with 44px min-height */}
-            <div className="mt-3 pt-2.5 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#4F46E5]">
+            <div className="mt-auto pt-2.5 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#4F46E5]">
               <span className="flex items-center gap-1.5 font-medium min-h-[44px] group-hover:underline">
                 <BookOpen className="w-4 h-4 text-[#4F46E5]" />
                 <span>Xem chi tiết</span>
