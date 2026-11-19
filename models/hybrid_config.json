@@ -1,0 +1,89 @@
+{
+  "version": "3.0.0-deep-cross",
+  "trainedAt": "2026-11-17T09:37:01.626Z",
+  "architecture": "Deep & Cross Neural RankNet (DCN) + SVD Collaborative Filtering",
+  "totalBooksCorpus": 12094,
+  "totalSamples": 35000,
+  "trainSamplesCount": 24500,
+  "testSamplesCount": 10500,
+  "epochs": 100,
+  "stage3Weights": {
+    "w1_tfidf_unigram": 0.0427,
+    "w2_tfidf_bigram": 0.01,
+    "w3_bm25": 0.117,
+    "w4_topic_match": 0.1101,
+    "w5_goal_style": 0.0023,
+    "w6_collaborative_cf": 0.0662,
+    "w7_bayesian_quality": 0.0145,
+    "w8_popularity": 0.035,
+    "w9_cross_topic_bm25": 0.5879,
+    "w10_dislike_penalty": 0.0143,
+    "bias": -4.0825
+  },
+  "stage3Metrics": {
+    "accuracy": 1,
+    "precision": 1,
+    "recall": 1,
+    "f1": 1,
+    "rmse": 0.007,
+    "ndcg10": 1,
+    "mrr": 0.998
+  },
+  "learningCurve": [
+    {
+      "epoch": 1,
+      "trainLoss": 0.0251,
+      "testLoss": 0.0081,
+      "trainAcc": 0.9958,
+      "testAcc": 1,
+      "testPrec": 1,
+      "testRecall": 1,
+      "testF1": 1,
+      "testRMSE": 0.0335
+    },
+    {
+      "epoch": 25,
+      "trainLoss": 0.0013,
+      "testLoss": 0.0011,
+      "trainAcc": 1,
+      "testAcc": 1,
+      "testPrec": 1,
+      "testRecall": 1,
+      "testF1": 1,
+      "testRMSE": 0.0075
+    },
+    {
+      "epoch": 50,
+      "trainLoss": 0.0012,
+      "testLoss": 0.0011,
+      "trainAcc": 1,
+      "testAcc": 1,
+      "testPrec": 1,
+      "testRecall": 1,
+      "testF1": 1,
+      "testRMSE": 0.0072
+    },
+    {
+      "epoch": 75,
+      "trainLoss": 0.0011,
+      "testLoss": 0.0011,
+      "trainAcc": 1,
+      "testAcc": 1,
+      "testPrec": 1,
+      "testRecall": 1,
+      "testF1": 1,
+      "testRMSE": 0.0071
+    },
+    {
+      "epoch": 100,
+      "trainLoss": 0.0011,
+      "testLoss": 0.0011,
+      "trainAcc": 1,
+      "testAcc": 1,
+      "testPrec": 1,
+      "testRecall": 1,
+      "testF1": 1,
+      "testRMSE": 0.007
+    }
+  ]
+}

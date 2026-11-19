@@ -5,9 +5,9 @@ import { CURATED_DATASET_BOOKS } from '../data/booksDataset';
 const pickSeedBooks = (ids: string[]): Book[] =>
   CURATED_DATASET_BOOKS.filter((b) => ids.includes(b.id));
 
-const USERS_STORAGE_KEY = 'websach-users-v2';
-const SESSION_STORAGE_KEY = 'websach-current-session-v2';
-const REMEMBERED_EMAIL_KEY = 'websach-remembered-email-v1';
+const USERS_STORAGE_KEY = 'websach-users-v3-deepcross';
+const SESSION_STORAGE_KEY = 'websach-current-session-v3';
+const REMEMBERED_EMAIL_KEY = 'websach-remembered-email-v3';
 
 // Hàm băm mật khẩu đơn giản cho môi trường client (Client-side mock hash)
 function simpleHash(str: string): string {
@@ -345,6 +345,95 @@ const DEMO_USERS: Record<string, UserAccount> = {
       },
     ],
   },
+  'taichinh@bookmind.vn': {
+    id: 'u-taichinh-01',
+    email: 'taichinh@bookmind.vn',
+    name: 'Hoàng Đầu Tư',
+    role: 'user',
+    avatar: 'avatar-5',
+    bio: 'Nhà đầu tư cá nhân, nghiên cứu quản trị dòng tiền, phân tích báo cáo tài chính và đầu tư cổ phiếu giá trị.',
+    favoriteGenres: ['Kinh doanh & Tài chính', 'Đầu tư & Chứng khoán', 'Kinh tế học', 'Khởi nghiệp & Quản trị'],
+    preferredStyle: 'realistic',
+    createdAt: '2026-11-05T09:00:00.000Z',
+    passwordHash: simpleHash('123456'),
+    favorites: pickSeedBooks([
+      'ds-psychology-of-money',
+      'ds-nguoi-giau-co-nhat-babylon',
+      'ds-mot-doi-quan-tri',
+      'ds-nguyen-ly-80-20',
+      'ds-lean-startup',
+      'ds-zero-to-one',
+      'ds-thinking-fast-slow',
+    ]),
+    ratings: {
+      'ds-psychology-of-money': 5,
+      'ds-nguoi-giau-co-nhat-babylon': 5,
+      'ds-mot-doi-quan-tri': 5,
+      'ds-nguyen-ly-80-20': 5,
+      'ds-lean-startup': 4,
+      'ds-zero-to-one': 4,
+      'ds-thinking-fast-slow': 4,
+      'ds-mat-biec': 2,
+      'ds-hieu-ve-trai-tim': 2,
+    },
+    notes: {
+      'ds-psychology-of-money': {
+        bookId: 'ds-psychology-of-money',
+        bookTitle: 'Tâm Lý Học Về Tiền',
+        content: 'Tự do tài chính không phải là kiếm thật nhiều tiền để phô trương, mà là quyền năng kiểm soát thời gian của chính mình.',
+        updatedAt: '2026-11-16T14:30:00.000Z',
+      },
+      'ds-nguoi-giau-co-nhat-babylon': {
+        bookId: 'ds-nguoi-giau-co-nhat-babylon',
+        bookTitle: 'Người Giàu Có Nhất Thành Babylon',
+        content: 'Trả cho bản thân trước tiên ít nhất 10% tổng thu nhập và để số tiền đó sinh sôi theo lãi kép.',
+        updatedAt: '2026-11-15T09:10:00.000Z',
+      },
+      'ds-mot-doi-quan-tri': {
+        bookId: 'ds-mot-doi-quan-tri',
+        bookTitle: 'Một Đời Quản Trị',
+        content: 'Quản trị là đưa con người cùng hướng về một mục đích chung với lòng chân thành và kỷ luật.',
+        updatedAt: '2026-11-14T20:45:00.000Z',
+      },
+    },
+    history: [
+      {
+        bookId: 'ds-psychology-of-money',
+        bookTitle: 'Tâm Lý Học Về Tiền',
+        bookAuthor: 'Morgan Housel',
+        genre: 'Kinh doanh & Tài chính',
+        viewedAt: '2026-11-16T15:00:00.000Z',
+      },
+      {
+        bookId: 'ds-nguoi-giau-co-nhat-babylon',
+        bookTitle: 'Người Giàu Có Nhất Thành Babylon',
+        bookAuthor: 'George S. Clason',
+        genre: 'Kinh doanh & Tài chính',
+        viewedAt: '2026-11-15T10:00:00.000Z',
+      },
+      {
+        bookId: 'ds-mot-doi-quan-tri',
+        bookTitle: 'Một Đời Quản Trị',
+        bookAuthor: 'Phan Văn Trường',
+        genre: 'Kinh doanh & Quản trị',
+        viewedAt: '2026-11-14T21:00:00.000Z',
+      },
+      {
+        bookId: 'ds-nguyen-ly-80-20',
+        bookTitle: 'Nguyên Lý 80/20: Bí Quyết Đạt Được Nhiều Hơn Với Ít Hơn',
+        bookAuthor: 'Richard Koch',
+        genre: 'Kinh doanh & Năng suất',
+        viewedAt: '2026-11-13T18:20:00.000Z',
+      },
+      {
+        bookId: 'ds-lean-startup',
+        bookTitle: 'Khởi Nghiệp Tinh Gọn',
+        bookAuthor: 'Eric Ries',
+        genre: 'Kinh doanh & Khởi nghiệp',
+        viewedAt: '2026-11-12T11:40:00.000Z',
+      },
+    ],
+  },
 };
 
 export class AuthService {
@@ -357,8 +446,8 @@ export class AuthService {
         return { ...DEMO_USERS };
       }
       const parsed = JSON.parse(raw);
-      // Đảm bảo các tài khoản mẫu hệ thống luôn tồn tại
-      return { ...DEMO_USERS, ...parsed };
+      // Đảm bảo các tài khoản mẫu hệ thống luôn được cập nhật phiên bản mới nhất (không bị cache cũ đè)
+      return { ...parsed, ...DEMO_USERS };
     } catch {
       return { ...DEMO_USERS };
     }
@@ -371,6 +460,10 @@ export class AuthService {
     } catch (e) {
       console.warn('Lỗi lưu trữ danh sách người dùng:', e);
     }
+  }
+
+  public static getAllUsers(): UserAccount[] {
+    return Object.values(this.loadUsers());
   }
 
   public static getCurrentSession(): UserAccount | null {

@@ -13,6 +13,7 @@ import {
   LogIn,
   Sun,
   Moon,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -48,6 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [mobileMenuOpen]);
 
   const userAvatar = AVATAR_OPTIONS.find((a) => a.id === currentUser?.avatar) || AVATAR_OPTIONS[0];
+  const isAdmin = currentUser?.role === 'admin';
 
   // Danh mục điều hướng nội dung chính (desktop & mobile)
   const navItems = [
@@ -57,6 +59,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'catalog', label: 'Kho Sách', icon: Library },
     { id: 'explore', label: 'Khám Phá', icon: Globe },
     { id: 'about', label: 'Giới Thiệu', icon: Info },
+    ...(isAdmin ? [{ id: 'admin', label: 'Quản Trị', icon: BarChart3 }] : []),
   ];
 
   const handleNavClick = (routeId: string) => {

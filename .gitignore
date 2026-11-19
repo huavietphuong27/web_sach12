@@ -4,6 +4,7 @@ dist/
 coverage/
 .aistudio/
 graphify-out/
+.vscode/
 .DS_Store
 *.log
 .env*

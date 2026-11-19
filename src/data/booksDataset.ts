@@ -66,6 +66,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Tập trung sâu là siêu năng lực của thế kỷ 21.',
     readingGoals: ['Tập trung sâu', 'Quản lý thời gian', 'Nâng cao hiệu suất', 'Kỷ luật bản thân'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=9z1cEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(1),
     isFeatured: true,
     isbn: '9786049825101',
@@ -90,6 +91,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Tiêu tiền để cho người khác thấy mình có bao nhiêu tiền là cách nhanh nhất để có ít tiền hơn.',
     readingGoals: ['Quản lý tài chính cá nhân', 'Đầu tư bền vững', 'Tư duy làm giàu', 'Kiểm soát cảm xúc'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=_myFEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(2),
     isFeatured: true,
     isbn: '9786043145823',
@@ -114,6 +116,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Thành công của startup không phải là tạo ra thứ gì đó, mà là học cách giải quyết đúng vấn đề của khách hàng.',
     readingGoals: ['Khởi nghiệp kinh doanh', 'Chiến lược sản phẩm', 'Quản trị rủi ro', 'Đổi mới sáng tạo'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=uDwhEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(3),
     isFeatured: true,
     isbn: '9786045891230',
@@ -136,6 +139,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Hiểu rồi thì thương mới sâu, thương sâu rồi thì khổ đau mới tự khắc tan biến.',
     readingGoals: ['Chữa lành cảm xúc', 'Thấu hiểu bản thân', 'Giảm căng thẳng stress', 'Bình yên nội tại'],
     style: 'subtle',
+    coverUrl: 'https://books.google.com/books/content?id=gVJGEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(4),
     isFeatured: true,
     isbn: '9786045861202',
@@ -158,6 +162,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Khi tâm không còn bị trói buộc vào thành quả, mỗi bước đi trong công việc đều trở thành một cuộc dạo chơi.',
     readingGoals: ['Cân bằng công việc cuộc sống', 'Vượt qua burnout', 'Chánh niệm tỉnh thức', 'Bình yên nội tại'],
     style: 'subtle',
+    coverUrl: 'https://books.google.com/books/content?id=idVDEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(5),
     isFeatured: false,
     isbn: '9786047791026',
@@ -182,6 +187,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Không có gì trong cuộc sống quan trọng như bạn nghĩ trong lúc bạn đang nghĩ về nó.',
     readingGoals: ['Tư duy phản biện', 'Ra quyết định thông minh', 'Tâm lý học hành vi', 'Logic sắc bén'],
     style: 'philosophical',
+    coverUrl: 'https://books.google.com/books/content?id=yjcWEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(6),
     isFeatured: true,
     isbn: '9786047751013',
@@ -206,6 +212,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'AI không chỉ là một công nghệ, nó là cuộc cách mạng định hình lại toàn bộ văn minh nhân loại.',
     readingGoals: ['Tìm hiểu Trí tuệ nhân tạo AI', 'Định hướng tương lai', 'Chuyển đổi số', 'Mở rộng tri thức'],
     style: 'philosophical',
+    coverUrl: 'https://books.google.com/books/content?id=IcY2EAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(7),
     isFeatured: true,
     isbn: '9786047798315',
@@ -230,6 +237,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Thông tin không đồng nghĩa với chân lý; sức mạnh của mạng lưới nằm ở khả năng kết nối chứ không chỉ ở sự thật.',
     readingGoals: ['Tư duy sâu sắc', 'Công nghệ & Tương lai AI', 'Triết lý nhân sinh', 'Tư duy phản biện'],
     style: 'philosophical',
+    coverUrl: 'https://books.google.com/books/content?id=HKArEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(0),
     isFeatured: true,
     isbn: '9786047799992',
@@ -253,6 +261,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Nếu bạn muốn có được những thứ chưa từng có, bạn phải làm những việc chưa từng làm.',
     readingGoals: ['Tạo động lực học tập', 'Vượt qua trì hoãn', 'Rèn luyện kỷ luật', 'Phát triển sự nghiệp'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=slTMEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(1),
     isFeatured: false,
     rating: 4.6,
@@ -276,6 +285,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Muốn lấy mật đừng phá tổ ong; hãy thành thật khen ngợi và trân trọng giá trị của người khác.',
     readingGoals: ['Nghệ thuật giao tiếp', 'Xây dựng mối quan hệ', 'Kỹ năng lãnh đạo', 'Thuyết phục tinh tế'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=eqjvDwAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(2),
     isFeatured: true,
     rating: 4.8,
@@ -298,6 +308,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Biết nói chuyện là một tài năng, nhưng biết lắng nghe và nói đúng lúc mới là trí tuệ.',
     readingGoals: ['Giao tiếp tự tin', 'Đàm phán thương lượng', 'Ứng xử công sở', 'Xây dựng mối quan hệ'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=7DA_EQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(3),
     isFeatured: false,
     rating: 4.7,
@@ -319,6 +330,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Con người sinh ra không phải để làm nô lệ cho bất cứ điều gì, mà để trở thành chính mình một cách tự do và có trách nhiệm.',
     readingGoals: ['Triết lý sống', 'Tư duy phản biện', 'Định hướng sự nghiệp', 'Khai mở trí tuệ'],
     style: 'philosophical',
+    coverUrl: 'https://books.google.com/books/content?id=HWzJEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(4),
     isFeatured: true,
     rating: 4.9,
@@ -340,6 +352,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Quản trị suy cho cùng không phải là dùng quyền lực áp đặt, mà là tạo ra môi trường để mỗi cá nhân tự tỏa sáng.',
     readingGoals: ['Kỹ năng lãnh đạo', 'Quản trị doanh nghiệp', 'Xây dựng văn hóa đội ngũ', 'Tư duy kinh doanh'],
     style: 'nostalgic',
+    coverUrl: 'https://books.google.com/books/content?id=ox_eEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(5),
     isFeatured: true,
     rating: 4.9,
@@ -361,6 +374,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Bạn hối hận vì không nắm bắt lấy một cơ hội nào đó, chẳng có ai phải mất ngủ. Người duy nhất chịu trách nhiệm cho cuộc đời bạn chính là bạn.',
     readingGoals: ['Tự học hiệu quả', 'Khám phá bản thân', 'Truyền cảm hứng sống', 'Phát triển kỹ năng'],
     style: 'nostalgic',
+    coverUrl: 'https://books.google.com/books/content?id=tlLJEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(6),
     isFeatured: false,
     rating: 4.7,
@@ -384,6 +398,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Chúng ta không thể ngăn những cơn sóng ập đến, nhưng chúng ta hoàn toàn có thể học cách lướt trên chúng.',
     readingGoals: ['Cân bằng cảm xúc', 'Vượt qua overthinking', 'Giảm lo âu mất ngủ', 'Tâm lý học ứng dụng'],
     style: 'subtle',
+    coverUrl: 'https://books.google.com/books/content?id=SkQ4DwAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(7),
     isFeatured: false,
     rating: 4.7,
@@ -407,6 +422,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Cạnh tranh dành cho kẻ thua cuộc; hãy tạo ra giá trị độc bản mà không ai có thể dễ dàng sao chép.',
     readingGoals: ['Khởi nghiệp công nghệ', 'Tư duy đột phá', 'Chiến lược kinh doanh', 'Đầu tư mạo hiểm'],
     style: 'philosophical',
+    coverUrl: 'https://books.google.com/books/content?id=9Gm-EAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(0),
     isFeatured: true,
     rating: 4.8,
@@ -430,6 +446,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Tiền tệ là hệ thống lòng tin vạn năng nhất từng được con người phát minh ra.',
     readingGoals: ['Mở rộng tri thức', 'Tư duy phản biện', 'Hiểu về lịch sử văn minh', 'Góc nhìn vĩ mô'],
     style: 'philosophical',
+    coverUrl: 'https://books.google.com/books/content?id=mJMvEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(1),
     isFeatured: true,
     rating: 4.9,
@@ -451,6 +468,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Sự lắng nghe không phán xét đôi khi chính là chiếc phao cứu sinh giữ một con người ở lại với cuộc đời.',
     readingGoals: ['Thấu hiểu tâm lý', 'Chữa lành tổn thương', 'Đồng cảm sâu sắc', 'Sức khỏe tinh thần'],
     style: 'subtle',
+    coverUrl: 'https://books.google.com/books/content?id=7XAmEgAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(2),
     isFeatured: true,
     rating: 4.9,
@@ -474,6 +492,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Bất kỳ kẻ ngốc nào cũng viết được code cho máy hiểu. Lập trình viên giỏi viết code cho con người dễ đọc.',
     readingGoals: ['Nâng cao kỹ năng lập trình', 'Kiến trúc phần mềm', 'Công nghệ & Kỹ thuật', 'Kỷ luật nghề nghiệp'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=_i6bDeoCQzsC&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(3),
     isFeatured: false,
     rating: 4.8,
@@ -497,6 +516,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Dữ liệu là nguồn dầu mỏ mới, nhưng tư duy phân tích dữ liệu mới là cỗ máy tinh lọc tạo ra giá trị.',
     readingGoals: ['Khoa học dữ liệu & AI', 'Hệ thống gợi ý', 'Phân tích kinh doanh', 'Tư duy logic'],
     style: 'philosophical',
+    coverUrl: 'https://books.google.com/books/content?id=nRsREgAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(4),
     isFeatured: true,
     rating: 4.8,
@@ -520,6 +540,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Vì cậu, cả ngàn lần hơn thế nữa!',
     readingGoals: ['Nuôi dưỡng tâm hồn', 'Chiêm nghiệm cuộc sống', 'Đồng cảm nhân sinh', 'Chữa lành quá khứ'],
     style: 'nostalgic',
+    coverUrl: 'https://books.google.com/books/content?id=ijhhSD9IMW8C&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(5),
     isFeatured: true,
     rating: 4.9,
@@ -541,6 +562,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Tôi gửi tình yêu cho mùa hè, nhưng mùa hè không giữ nổi. Mùa hè chỉ biết ra hoa, phượng đỏ sân trường và tiếng ve nỉ non trong lá.',
     readingGoals: ['Nuôi dưỡng tâm hồn', 'Thư giãn nhẹ nhàng', 'Hoài niệm tuổi trẻ', 'Cân bằng cảm xúc'],
     style: 'nostalgic',
+    coverUrl: 'https://books.google.com/books/content?id=ngmRzQEACAAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(6),
     isFeatured: false,
     rating: 4.8,
@@ -564,6 +586,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Khi bạn thực sự khao khát một điều gì đó, cả vũ trụ sẽ hợp lực giúp bạn đạt được điều đó.',
     readingGoals: ['Theo đuổi ước mơ', 'Chiêm nghiệm cuộc sống', 'Tìm lại phương hướng', 'Truyền cảm hứng'],
     style: 'nostalgic',
+    coverUrl: 'https://books.google.com/books/content?id=0KnZEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(7),
     isFeatured: true,
     rating: 4.8,
@@ -587,6 +610,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Thói quen buông thả không mục tiêu là con đường ngắn nhất dẫn đến thất bại.',
     readingGoals: ['Vượt qua trì hoãn', 'Rèn luyện kỷ luật thép', 'Làm chủ tâm trí', 'Kiên định mục tiêu'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=8XKmEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(0),
     isFeatured: false,
     rating: 4.8,
@@ -610,6 +634,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Đừng cố làm tất cả mọi việc với nỗ lực ngang nhau; hãy dồn toàn lực vào số ít việc tạo ra đột phá lớn nhất.',
     readingGoals: ['Tối ưu hiệu suất', 'Quản lý thời gian', 'Tư duy chiến lược', 'Kinh doanh thông minh'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=j2iBJI7ivI8C&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(1),
     isFeatured: false,
     rating: 4.7,
@@ -633,6 +658,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Một phần mười số tiền bạn kiếm được là thuộc về bạn để giữ lại và đầu tư cho tương lai.',
     readingGoals: ['Quản lý tài chính cá nhân', 'Tiết kiệm & Đầu tư', 'Xây dựng tài sản', 'Đọc nhanh áp dụng ngay'],
     style: 'nostalgic',
+    coverUrl: 'https://books.google.com/books/content?id=t5BnEAAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(2),
     isFeatured: false,
     rating: 4.8,
@@ -656,6 +682,7 @@ export const CURATED_DATASET_BOOKS: Book[] = [
     quote: 'Chỉ cần tránh được những sai lầm ngớ ngẩn, bạn đã đi trước phần lớn đám đông.',
     readingGoals: ['Tư duy phản biện', 'Tránh thiên kiến nhận thức', 'Ra quyết định sáng suốt', 'Tư duy logic'],
     style: 'realistic',
+    coverUrl: 'https://books.google.com/books/content?id=KPTuEQAAQBAJ&printsec=frontcover&img=1&zoom=1&source=gbs_api',
     coverPalette: getPalette(3),
     isFeatured: true,
     rating: 4.8,
@@ -766,6 +793,150 @@ export const USER_INTERACTION_DATASET: UserInteractionRecord[] = [
       'ds-zero-to-one': 5,
       'ds-ai-2041': 5,
     },
+  },
+  {
+    "userId": "train-u01",
+    "persona": "Độc giả Chữa lành & Thiền định",
+    "ratings": {
+      "gb-nzYFEQAAQBAJ": 5,
+      "gb-KKMZ3zYVkxoC": 5,
+      "gb-mFfsD0tZPY4C": 5,
+      "gb-Lby2LR9E4XAC": 5,
+      "gb-NyrkAAAAMAAJ": 4,
+      "gb-A1eX0QEACAAJ": 4
+    }
+  },
+  {
+    "userId": "train-u02",
+    "persona": "Người nghiên cứu Tâm lý học hành vi",
+    "ratings": {
+      "gb-hgnr2B1BYCIC": 5,
+      "gb-dAzmEAAAQBAJ": 5,
+      "gb-YwyhEAAAQBAJ": 5,
+      "gb--YCcEQAAQBAJ": 5,
+      "gb-HGnQEAAAQBAJ": 4,
+      "gb-xGAOEQAAQBAJ": 4
+    }
+  },
+  {
+    "userId": "train-u03",
+    "persona": "Người trẻ Rèn luyện Kỷ luật & Hiệu suất",
+    "ratings": {
+      "gb-aWIAEgAAQBAJ": 5,
+      "gb-mNQNEgAAQBAJ": 5,
+      "gb-Aaq4W_mJtwUC": 5,
+      "gb-7MT5iZWFdsIC": 5,
+      "gb-cvRlR67daTgC": 4,
+      "gb-_FSOSZbJi-UC": 4
+    }
+  },
+  {
+    "userId": "train-u04",
+    "persona": "Nhà Quản lý & Nghệ thuật Giao tiếp",
+    "ratings": {
+      "gb-ZFqluyeBmB0C": 5,
+      "gb-XFEcAAAAMAAJ": 5,
+      "gb-ESBAXxx6lg4C": 5,
+      "gb-ULYgEQAAQBAJ": 5,
+      "gb-eqjvDwAAQBAJ": 4,
+      "gb-DBSYZWfoPpEC": 4
+    }
+  },
+  {
+    "userId": "train-u05",
+    "persona": "Chuyên viên Phân tích & Tư duy Logic",
+    "ratings": {
+      "gb-cJ4MEgAAQBAJ": 5,
+      "gb-mePFDwAAQBAJ": 5,
+      "gb-yVUSEgAAQBAJ": 5,
+      "gb-JkMlEAAAQBAJ": 5,
+      "gb-KrYgEQAAQBAJ": 4,
+      "gb-jGOLEQAAQBAJ": 4
+    }
+  },
+  {
+    "userId": "train-u06",
+    "persona": "Founder Khởi nghiệp & Quản trị",
+    "ratings": {
+      "gb-HzfQL7nROMMC": 5,
+      "gb-V15RH9a5Ny4C": 5,
+      "gb-yds-EQAAQBAJ": 5,
+      "gb-neIdEQAAQBAJ": 5,
+      "gb-FOh_OueKdxwC": 4,
+      "gb-uD2VEAAAQBAJ": 4
+    }
+  },
+  {
+    "userId": "train-u07",
+    "persona": "Nhà Đầu tư Tài chính & Chứng khoán",
+    "ratings": {
+      "gb-1q9mJGKlaOcC": 5,
+      "gb-jG_Cns0VtiYC": 5,
+      "gb-6r2qEAAAQBAJ": 5,
+      "gb-cH-sEAAAQBAJ": 5,
+      "gb-tlt6OgVB624C": 4,
+      "gb-H2tzEQAAQBAJ": 4
+    }
+  },
+  {
+    "userId": "train-u08",
+    "persona": "Kỹ sư AI & Khoa học Dữ liệu",
+    "ratings": {
+      "gb-ol-OL21853195W": 5,
+      "gb-ol-OL27394679W": 5,
+      "gb-ol-OL28004206W": 5,
+      "gb-ol-OL24443687W": 5,
+      "gb-ol-OL28331582W": 4,
+      "gb-ol-OL26752433W": 4
+    }
+  },
+  {
+    "userId": "train-u09",
+    "persona": "Kỹ sư Phần mềm & Kiến trúc Hệ thống",
+    "ratings": {
+      "gb-f77zEQAAQBAJ": 5,
+      "gb-ynJ0EQAAQBAJ": 5,
+      "gb-d6N-DwAAQBAJ": 5,
+      "gb-HlkYEgAAQBAJ": 5,
+      "gb-R1kYEgAAQBAJ": 4,
+      "gb-BJrDPadXHacC": 4
+    }
+  },
+  {
+    "userId": "train-u10",
+    "persona": "Độc giả Yêu Văn học & Tiểu thuyết",
+    "ratings": {
+      "gb-ol-OL23966935W": 5,
+      "gb-ol-OL39207480W": 5,
+      "gb-ol-OL42377828W": 5,
+      "gb-1ex7xxMUqocC": 5,
+      "gb-ol-OL43655908W": 4,
+      "gb-ol-OL26193736W": 4
+    }
+  },
+  {
+    "userId": "train-u11",
+    "persona": "Độc giả Lịch sử & Triết học",
+    "ratings": {
+      "gb-WnRbAAAAIAAJ": 5,
+      "gb-FXImEgAAQBAJ": 5,
+      "gb-QDowEQAAQBAJ": 5,
+      "gb-1sY6EQAAQBAJ": 5,
+      "gb-9YvSslfj_lYC": 4,
+      "gb-ol-OL45569780W": 4
+    }
+  },
+  {
+    "userId": "train-u12",
+    "persona": "Phụ huynh & Chăm sóc Sức khỏe",
+    "ratings": {
+      "gb-c_fyEQAAQBAJ": 5,
+      "gb-8q-SIXPpDlQC": 5,
+      "gb-H_wPEgAAQBAJ": 5,
+      "gb-lgnM5ATE8F0C": 5,
+      "gb-lLFmEQAAQBAJ": 4,
+      "gb-Aaq4W_mJtwUC": 4
+    }
   },
 ];
 

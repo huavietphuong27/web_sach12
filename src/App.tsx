@@ -11,6 +11,7 @@ import { AboutView } from './views/AboutView';
 import { AdvisorView } from './views/AdvisorView';
 import { BookDetailView } from './views/BookDetailView';
 import { AuthView } from './views/AuthView';
+import { AdminDashboardView } from './views/AdminDashboardView';
 import {
   AdvisorBook,
   advisorBookToBook,
@@ -97,6 +98,17 @@ function MainApp() {
     if (cached && cached.books.length) {
       setLiveBooks(deduplicateAndMergeBooks(FALLBACK_BOOKS, cached.books));
     }
+    // Nạp kho sách tiếng Việt đã lọc sạch & kiểm chứng ảnh bìa HD
+    fetch('/dataset/vi_books_catalog.json')
+      .then((res) => (res.ok ? res.json() : []))
+      .then((catalogBooks: Book[]) => {
+        if (Array.isArray(catalogBooks) && catalogBooks.length > 0) {
+          setLiveBooks((prev) => deduplicateAndMergeBooks(prev, catalogBooks));
+        }
+      })
+      .catch(() => {
+        /* bỏ qua nếu không có file tĩnh */
+      });
     refreshBooks(true);
   }, [refreshBooks]);
 
@@ -119,7 +131,7 @@ function MainApp() {
         setCurrentRoute('home');
         return;
       }
-      if (['home', 'goal', 'catalog', 'explore', 'about', 'advisor', 'auth', 'profile'].includes(hash)) {
+      if (['home', 'goal', 'catalog', 'explore', 'about', 'advisor', 'auth', 'profile', 'admin'].includes(hash)) {
         setCurrentRoute(hash === 'profile' ? 'auth' : hash);
       } else if (hash.startsWith('book-') || hash.startsWith('detail-')) {
         const prefixLen = hash.startsWith('detail-') ? 7 : 5;
@@ -319,6 +331,21 @@ function MainApp() {
             }}
             onNavigateHome={() => navigateTo('home')}
           />
+        )}
+
+        {currentRoute === 'admin' && (
+          currentUser?.role === 'admin' ? (
+            <AdminDashboardView allBooks={allBooks} onSelectBook={handleSelectBook} />
+          ) : (
+            <HomeView
+              books={allBooks}
+              onSelectBook={handleSelectBook}
+              onNavigate={navigateTo}
+              onSelectGoal={handleSelectGoal}
+              onQuickSearch={handleQuickSearch}
+              onFilterByAttribute={handleFilterByAttribute}
+            />
+          )
         )}
 
         {currentRoute === 'detail' && selectedBook && (

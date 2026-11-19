@@ -54,6 +54,15 @@ const SEED_SEARCH_QUERIES: Record<string, string[]> = {
     'làm việc sâu hiệu suất',
     'tư duy phản biện',
   ],
+  'u-taichinh-01': [
+    'đầu tư chứng khoán',
+    'quản lý tài chính cá nhân',
+    'làm giàu thông minh',
+    'phân tích dòng tiền',
+    'kinh tế học vĩ mô',
+    'tâm lý học về tiền',
+    'cổ phiếu giá trị',
+  ],
 };
 
 export function saveUserSearchQuery(userId: string, query: string): void {

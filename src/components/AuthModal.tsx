@@ -340,6 +340,14 @@ export const AuthModal: React.FC = () => {
                 >
                   <span>🚀 Hùng Công Nghệ</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('taichinh@bookmind.vn', '123456')}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Tài khoản đã cào dữ liệu sách Kinh doanh, Tài chính & Đầu tư"
+                >
+                  <span>💰 Hoàng Đầu Tư</span>
+                </button>
               </div>
             </div>
           )}
